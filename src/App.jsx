@@ -66,6 +66,34 @@ async function fileToDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+async function optimizeScrapImage(file) {
+  if (!file?.type?.startsWith("image/")) throw new Error("이미지 파일만 붙여넣거나 선택할 수 있어요.");
+  if (file.size > 2.5 * 1024 * 1024) throw new Error("이미지는 2.5MB 이하만 등록할 수 있어요.");
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const preview = new Image();
+      preview.onload = () => resolve(preview);
+      preview.onerror = () => reject(new Error("이미지를 읽지 못했어요."));
+      preview.src = objectUrl;
+    });
+    const maxDimension = 1600;
+    let scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    let result = "";
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("이미지를 최적화하지 못했어요.");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      result = canvas.toDataURL("image/webp", Math.max(.58, .82 - attempt * .08));
+      if (result.length <= 850_000) break;
+      scale *= .82;
+    }
+    return result;
+  } finally { URL.revokeObjectURL(objectUrl); }
+}
 function Required() { return <span className="required-mark" aria-label="필수">*</span>; }
 function FieldTitle({ children, required = false }) { return <span className="field-title">{children}{required && <Required />}</span>; }
 function CustomSelect({ name, value, defaultValue, onValueChange, children, required = false, label = "옵션 선택", variant = "field", className = "" }) {
@@ -370,7 +398,13 @@ export function App() {
   useEffect(() => localStorage.setItem("mycloset-outfit-notes", JSON.stringify(outfitNotes)), [outfitNotes]);
   useEffect(() => localStorage.setItem("mycloset-wishlist", JSON.stringify(wishlist)), [wishlist]);
   useEffect(() => localStorage.setItem("mycloset-lookbooks", JSON.stringify(lookbooks)), [lookbooks]);
-  useEffect(() => localStorage.setItem("mycloset-inspirations", JSON.stringify(inspirations)), [inspirations]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("mycloset-inspirations", JSON.stringify(inspirations));
+    } catch {
+      setNotice("브라우저 저장 공간이 부족해 스크랩을 저장하지 못했어요.");
+    }
+  }, [inspirations]);
   useEffect(() => localStorage.setItem("mycloset-categories", JSON.stringify(categories)), [categories]);
   useEffect(() => localStorage.setItem("mycloset-wardrobe-view", JSON.stringify(wardrobeView)), [wardrobeView]);
   useEffect(() => {
@@ -399,7 +433,7 @@ export function App() {
       if (!imageFile) return;
       event.preventDefault();
       try {
-        setPinImage(await fileToDataUrl(imageFile));
+        setPinImage(await optimizeScrapImage(imageFile));
         setPinFileName(imageFile.name || "붙여넣은 이미지");
       } catch (error) { setNotice(error.message || "이미지를 붙여넣지 못했어요."); }
     };
@@ -560,7 +594,7 @@ export function App() {
   const handlePinFile = async (file) => {
     if (!file) return;
     try {
-      setPinImage(await fileToDataUrl(file));
+      setPinImage(await optimizeScrapImage(file));
       setPinFileName(file.name);
     } catch (error) { setNotice(error.message || "이미지를 불러오지 못했어요."); }
   };
@@ -570,13 +604,21 @@ export function App() {
     const imageUrl = String(data.get("imageUrl") || "").trim();
     const image = pinImage || imageUrl;
     if (!image) { setNotice("코디 이미지 URL을 입력하거나 이미지를 붙여넣어 주세요."); return; }
-    setInspirations((current) => [{
+    const nextInspiration = {
       id: `inspiration-${Date.now()}`,
       image,
       caption: pinCaption.trim(),
       sourceUrl: pinSourceUrl.trim(),
       createdAt: new Date().toISOString(),
-    }, ...current]);
+    };
+    const nextInspirations = [nextInspiration, ...inspirations];
+    try {
+      localStorage.setItem("mycloset-inspirations", JSON.stringify(nextInspirations));
+    } catch {
+      setNotice("브라우저 저장 공간이 부족해 스크랩을 저장하지 못했어요. 큰 스크랩을 삭제한 뒤 다시 시도해주세요.");
+      return;
+    }
+    setInspirations(nextInspirations);
     closeModal();
     setNotice("마음에 든 코디를 스크랩했어요.");
   };
@@ -1051,7 +1093,7 @@ export function App() {
 
     {modal === "outfit" && <Modal title="착장 고르기" subtitle={selectedDateLabel} eyebrow="" onClose={closeModal} wide><div className="category-tabs modal-tabs">{allCategories.map((name) => <button className={outfitCategory === name ? "active" : ""} onClick={() => setOutfitCategory(name)} key={name}>{name}</button>)}</div><div className="outfit-picker-body">{outfitPickerItems.length ? <div className="picker-grid">{outfitPickerItems.map((item) => { const checked = draftOutfit.includes(item.id); return <button type="button" className={checked ? "selected" : ""} onClick={() => toggleDraft(item.id)} key={item.id}><div className="picker-visual"><ItemVisual item={item}/></div><span><strong>{item.name}</strong><small>{item.brand || "브랜드 미지정"}</small><small>{item.category} · {item.color || "색상 미지정"}</small></span>{checked && <i className="check"><Check size={15} weight="bold"/></i>}</button>; })}</div> : <div className="picker-empty">이 카테고리에는 등록된 옷이 없어요.</div>}</div><footer className="modal-actions">{selectedItems.length > 0 && <button className="danger-button outfit-modal-delete" onClick={() => setModal("confirmOutfit")}><Trash size={18}/>착장 삭제</button>}<span className="action-spacer"/><button className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={saveOutfit}>착장 저장</button></footer></Modal>}
     {modal === "lookbookCreate" && <Modal title={editingLookbookId ? "룩북 수정" : "룩북 만들기"} subtitle={editingLookbookId ? "이름과 메모, 옷 구성을 변경하세요" : "다시 입고 싶은 조합을 한곳에 저장해두세요"} eyebrow="" onClose={closeModal} wide className="lookbook-editor-modal"><div className="category-tabs modal-tabs" aria-label="옷 카테고리">{allCategories.map((name) => <button type="button" className={lookbookCategory === name ? "active" : ""} aria-pressed={lookbookCategory === name} onClick={() => setLookbookCategory(name)} key={name}>{name}</button>)}</div><div className="lookbook-picker-summary" aria-live="polite"><strong>{draftLookbookIds.length}개 선택</strong><span>함께 입을 옷을 골라 하나의 룩으로 구성해보세요.</span></div><div className="outfit-picker-body">{lookbookPickerItems.length ? <div className="picker-grid">{lookbookPickerItems.map((item) => { const checked = draftLookbookIds.includes(item.id); return <button type="button" className={checked ? "selected" : ""} aria-pressed={checked} onClick={() => toggleLookbookDraft(item.id)} key={item.id}><div className="picker-visual"><ItemVisual item={item}/></div><span><strong>{item.name}</strong><small>{item.brand || "브랜드 미지정"}</small><small>{item.category} · {item.color || "색상 미지정"}</small></span>{checked && <i className="check"><Check size={15} weight="bold"/></i>}</button>; })}</div> : <div className="picker-empty">이 카테고리에는 등록된 옷이 없어요.</div>}</div><div className="lookbook-form-fields"><label><FieldTitle required>룩북 이름</FieldTitle><input value={lookbookName} onChange={(event) => setLookbookName(event.target.value)} placeholder="예: 비 오는 날 출근룩"/></label><label><FieldTitle>메모</FieldTitle><input value={lookbookMemo} onChange={(event) => setLookbookMemo(event.target.value)} placeholder="언제, 어떤 분위기로 입을지 적어두세요"/></label></div><footer className="modal-actions"><button className="secondary-button compact" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={saveLookbook}>{editingLookbookId ? "수정 저장" : "룩북 저장"}</button></footer></Modal>}
-    {modal === "inspirationCreate" && <Modal title="스크랩 저장" subtitle="온라인에서 발견한 스타일을 참고용으로 모아두세요" eyebrow="" onClose={closeModal} compact className="inspiration-modal"><form className="entry-form inspiration-form" onSubmit={saveInspiration}><div className={`pin-paste-zone${pinImage ? " has-image" : ""}`} tabIndex={0}>{pinImage ? <><img src={pinImage} alt="저장할 코디 미리보기"/><button type="button" className="pin-preview-remove" onClick={() => { setPinImage(""); setPinFileName(""); }} aria-label="선택한 이미지 제거"><X size={16}/></button></> : <><span><ImageSquare size={28}/></span><strong>이미지를 여기에 붙여넣으세요</strong><small>스크린샷을 복사한 뒤 ⌘V 또는 Ctrl+V</small></>}</div><div className="field-group"><FieldTitle required>이미지 URL 또는 파일</FieldTitle><div className="image-source-row"><div className="input-with-icon"><ImageSquare size={19}/><input name="imageUrl" type="url" inputMode="url" disabled={Boolean(pinImage)} placeholder="https://image.example.com/look.jpg"/></div><input id="pin-image-file" className="visually-hidden-input" type="file" accept="image/*" onChange={(event) => handlePinFile(event.target.files?.[0])}/><label className="image-upload-button" htmlFor="pin-image-file"><UploadSimple size={18}/><span>파일</span></label></div><small className={`field-help${pinFileName ? " selected" : ""}`}>{pinFileName ? `${pinFileName} 선택됨` : "직접 이미지 주소를 입력하거나 JPG, PNG, WEBP 파일을 선택하세요. 최대 2.5MB"}</small></div><label><FieldTitle>캡션</FieldTitle><input value={pinCaption} onChange={(event) => setPinCaption(event.target.value)} maxLength={80} placeholder="예: 여름 여행용 뉴트럴 레이어드"/></label><label><FieldTitle>원본 URL</FieldTitle><div className="input-with-icon"><LinkIcon size={19}/><input type="url" value={pinSourceUrl} onChange={(event) => setPinSourceUrl(event.target.value)} placeholder="https://pinterest.com/…"/></div></label><p className="pin-reference-note">스크랩은 참고용으로만 저장되며 착장 날짜에는 적용되지 않아요.</p><footer className="modal-actions"><button type="button" className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact">스크랩 저장</button></footer></form></Modal>}
+    {modal === "inspirationCreate" && <Modal title="스크랩 저장" subtitle="온라인에서 발견한 스타일을 참고용으로 모아두세요" eyebrow="" onClose={closeModal} compact className="inspiration-modal"><form className="entry-form inspiration-form" onSubmit={saveInspiration}><div className={`pin-paste-zone${pinImage ? " has-image" : ""}`} tabIndex={0}>{pinImage ? <><img src={pinImage} alt="저장할 코디 미리보기"/><button type="button" className="pin-preview-remove" onClick={() => { setPinImage(""); setPinFileName(""); }} aria-label="선택한 이미지 제거"><X size={16}/></button></> : <><span><ImageSquare size={28}/></span><strong>이미지를 여기에 붙여넣으세요</strong><small>스크린샷을 복사한 뒤 ⌘V 또는 Ctrl+V</small></>}</div><div className="field-group"><FieldTitle required>이미지 URL 또는 파일</FieldTitle><div className="image-source-row"><div className="input-with-icon"><ImageSquare size={19}/><input name="imageUrl" type="url" inputMode="url" disabled={Boolean(pinImage)} placeholder="https://image.example.com/look.jpg"/></div><input id="pin-image-file" className="visually-hidden-input" type="file" accept="image/*" onChange={(event) => handlePinFile(event.target.files?.[0])}/><label className="image-upload-button" htmlFor="pin-image-file"><UploadSimple size={18}/><span>파일</span></label></div><small className={`field-help${pinFileName ? " selected" : ""}`}>{pinFileName ? `${pinFileName} 선택됨 · 저장할 때 자동으로 용량을 줄여요.` : "JPG, PNG, WEBP · 최대 2.5MB · 저장할 때 자동으로 용량을 줄여요."}</small></div><label><FieldTitle>캡션</FieldTitle><input value={pinCaption} onChange={(event) => setPinCaption(event.target.value)} maxLength={80} placeholder="예: 여름 여행용 뉴트럴 레이어드"/></label><label><FieldTitle>원본 URL</FieldTitle><div className="input-with-icon"><LinkIcon size={19}/><input type="url" value={pinSourceUrl} onChange={(event) => setPinSourceUrl(event.target.value)} placeholder="https://pinterest.com/…"/></div></label><p className="pin-reference-note">스크랩은 참고용으로만 저장되며 착장 날짜에는 적용되지 않아요.</p><footer className="modal-actions"><button type="button" className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact">스크랩 저장</button></footer></form></Modal>}
     {modal === "inspirationViewer" && activeInspiration && <InspirationViewer inspiration={activeInspiration} onClose={closeModal}/>}
     {modal === "lookbookApply" && activeLookbook && <Modal title="날짜에 적용" subtitle={activeLookbook.name} eyebrow="" onClose={closeModal} compact className="lookbook-apply-modal"><div className="lookbook-apply-copy"><CalendarPlus size={28}/><div><strong>{activeLookbook.itemIds.filter((id) => itemMap[id]).length}개의 아이템을 적용할 날짜</strong><span>선택한 날짜의 기존 착장이 있다면 이 룩북으로 교체됩니다.</span></div></div><CompactCalendar className="lookbook-apply-calendar" ariaLabel="룩북을 적용할 날짜 선택" cursor={lookbookCalendarCursor} onCursorChange={setLookbookCalendarCursor} selectedDate={lookbookApplyDate} onSelectDate={setLookbookApplyDate} outfits={outfits}/>{(outfits[lookbookApplyDate] ?? []).length > 0 && <p className="lookbook-overwrite-note">이 날짜에는 이미 착장이 있어요. 적용하면 현재 조합이 교체됩니다.</p>}<footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={applyLookbook}>이 날짜에 적용</button></footer></Modal>}
     {modal === "itemUrl" && <Modal title="상품 URL로 옷 등록" subtitle="링크를 분석한 뒤 입력 내용을 확인할 수 있어요" onClose={closeModal} compact className="product-url-modal"><ProductUrlStep kind="item" loading={productLookupLoading} error={productLookupError} onSubmit={(event) => lookupProduct(event, "item")} onManual={() => openManualRegistration("item")}/></Modal>}
