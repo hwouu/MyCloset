@@ -166,6 +166,7 @@ export function createBackupPayload(data, preferences = {}, exportedAt = new Dat
       outfitNotes: data.outfitNotes,
       lookbooks: data.lookbooks,
       wishlist: data.wishlist,
+      ...(Array.isArray(data.inspirations) ? { inspirations: data.inspirations } : {}),
     },
     preferences: {
       theme: preferences.theme,
@@ -197,7 +198,9 @@ export function validateBackupPayload(payload) {
     && data.wishlist.every(hasStringId)
     && Object.values(data.outfits).every((ids) => Array.isArray(ids) && ids.every((id) => typeof id === "string"))
     && Object.values(data.outfitNotes).every((note) => typeof note === "string");
-  if (!collectionsAreValid) throw new Error("백업 데이터에 올바르지 않은 항목이 있어요.");
+  const inspirationsAreValid = data.inspirations === undefined
+    || (Array.isArray(data.inspirations) && data.inspirations.every((pin) => hasStringId(pin) && typeof pin.image === "string" && pin.image.length > 0));
+  if (!collectionsAreValid || !inspirationsAreValid) throw new Error("백업 데이터에 올바르지 않은 항목이 있어요.");
   const categories = data.categories.filter((name) => typeof name === "string" && name.trim()).map((name) => name.trim());
   if (!categories.length) throw new Error("백업 파일에 사용할 수 있는 카테고리가 없어요.");
   return {
@@ -208,6 +211,7 @@ export function validateBackupPayload(payload) {
       outfitNotes: data.outfitNotes,
       lookbooks: data.lookbooks,
       wishlist: data.wishlist,
+      ...(Array.isArray(data.inspirations) ? { inspirations: data.inspirations } : {}),
     },
     preferences: payload.preferences && typeof payload.preferences === "object" && !Array.isArray(payload.preferences) ? payload.preferences : {},
   };

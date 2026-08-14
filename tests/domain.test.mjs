@@ -138,6 +138,7 @@ test("full backup payload round-trips every collection and screen preference", (
     outfitNotes: { "2026-08-14": "회의" },
     lookbooks: [{ id: "daily", itemIds: ["shirt"] }],
     wishlist: [{ id: "wish" }],
+    inspirations: [{ id: "pin", image: "data:image/png;base64,look", caption: "여름 코디" }],
   };
   const preferences = {
     theme: "dark", sidebarCollapsed: true, detailWidth: 520,
@@ -147,6 +148,14 @@ test("full backup payload round-trips every collection and screen preference", (
   assert.equal(payload.format, "mycloset-backup");
   assert.equal(payload.version, 1);
   assert.deepEqual(validateBackupPayload(JSON.parse(JSON.stringify(payload))), { data, preferences });
+});
+
+test("older backups without inspiration pins remain compatible", () => {
+  const payload = createBackupPayload({
+    items: [], categories: ["상의"], outfits: {}, outfitNotes: {}, lookbooks: [], wishlist: [],
+  });
+  assert.equal("inspirations" in payload.data, false);
+  assert.equal("inspirations" in validateBackupPayload(payload).data, false);
 });
 
 test("backup validation rejects unrelated and incomplete JSON files", () => {

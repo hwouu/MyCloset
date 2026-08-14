@@ -23,6 +23,7 @@ const INITIAL_ITEMS = [];
 const INITIAL_OUTFITS = {};
 const INITIAL_WISHLIST = [];
 const INITIAL_LOOKBOOKS = [];
+const INITIAL_INSPIRATIONS = [];
 const DEMO_ITEM_IDS = new Set(["shirt-blue", "pants-black", "bag-black", "shoes-black", "shirt-beige", "pants-photo", "cardigan-navy", "tee-brown", "denim"]);
 const DEMO_LOOKBOOK_IDS = new Set(["lookbook-daily", "lookbook-weekend"]);
 const DEMO_WISHLIST_IDS = new Set(["wish-1", "wish-2"]);
@@ -237,6 +238,24 @@ function Modal({ title, subtitle = "", eyebrow = "MyCloset", onClose, children, 
   </div>;
 }
 
+function InspirationViewer({ inspiration, onClose }) {
+  useEffect(() => {
+    const onKeyDown = (event) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.classList.add("modal-open");
+    return () => { document.removeEventListener("keydown", onKeyDown); document.body.classList.remove("modal-open"); };
+  }, [onClose]);
+  return <div className="modal-backdrop inspiration-viewer-backdrop" onMouseDown={onClose}>
+    <figure className="inspiration-viewer" role="dialog" aria-modal="true" aria-label="스크랩 이미지 크게 보기" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="inspiration-viewer-image">
+        <img src={inspiration.image} alt={inspiration.caption || "저장한 코디 참고 이미지"}/>
+        <button type="button" className="inspiration-viewer-close" onClick={onClose} aria-label="닫기"><X size={22}/></button>
+      </div>
+      {inspiration.caption && <figcaption>{inspiration.caption}</figcaption>}
+    </figure>
+  </div>;
+}
+
 function ProductUrlStep({ kind, loading, error, onSubmit, onManual }) {
   const subject = kind === "item" ? "옷" : "위시리스트 아이템";
   return <>
@@ -248,9 +267,9 @@ function ProductUrlStep({ kind, loading, error, onSubmit, onManual }) {
       <label><FieldTitle required>상품 URL</FieldTitle><div className="input-with-icon"><LinkIcon size={19}/><input name="productUrl" type="url" inputMode="url" autoFocus required disabled={loading} placeholder="https://www.musinsa.com/products/…"/></div></label>
       {loading && <div className="product-fetch-progress" role="status"><CircleNotch size={24}/><span><strong>상품 정보를 가져오고 있어요</strong><small>페이지의 상품 정보와 대표 이미지를 확인하는 중입니다.</small></span></div>}
       {error && <div className="product-fetch-error" role="alert"><strong>자동 입력을 완료하지 못했어요.</strong><span>{error}</span></div>}
+      <p className="product-url-note">자동으로 채운 내용은 다음 화면에서 자유롭게 수정할 수 있어요. 지원되지 않는 쇼핑몰은 {subject} 정보를 직접 입력해주세요.</p>
       <footer className="modal-actions product-url-actions"><button type="button" className="secondary-button" onClick={onManual} disabled={loading}>직접 입력</button><button className="primary-button compact" disabled={loading}>{loading ? <><CircleNotch className="spin" size={18}/>처리 중</> : <><LinkIcon size={18}/>정보 가져오기</>}</button></footer>
     </form>
-    <p className="product-url-note">자동으로 채운 내용은 다음 화면에서 자유롭게 수정할 수 있어요. 지원되지 않는 쇼핑몰은 {subject} 정보를 직접 입력해주세요.</p>
   </>;
 }
 
@@ -264,7 +283,10 @@ function AutofillSummary({ product }) {
 
 export function App() {
   const [theme, setTheme] = useState(() => load("mycloset-theme", "light"));
-  const [view, setView] = useState("calendar");
+  const [view, setView] = useState(() => {
+    const savedView = load("mycloset-current-view", "calendar");
+    return ["calendar", "closet", "lookbook", "wishlist", "settings"].includes(savedView) ? savedView : "calendar";
+  });
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [view]);
@@ -278,6 +300,7 @@ export function App() {
   const [outfitNotes, setOutfitNotes] = useState(() => load("mycloset-outfit-notes", {}));
   const [wishlist, setWishlist] = useState(() => load("mycloset-wishlist", INITIAL_WISHLIST));
   const [lookbooks, setLookbooks] = useState(() => load("mycloset-lookbooks", INITIAL_LOOKBOOKS));
+  const [inspirations, setInspirations] = useState(() => load("mycloset-inspirations", INITIAL_INSPIRATIONS));
   const [categories, setCategories] = useState(() => load("mycloset-categories", DEFAULT_CATEGORIES));
   const [category, setCategory] = useState("전체");
   const [wardrobeView, setWardrobeView] = useState(() => load("mycloset-wardrobe-view", "grid") === "table" ? "table" : "grid");
@@ -290,7 +313,10 @@ export function App() {
   const [lookbookSearch, setLookbookSearch] = useState("");
   const [wishlistSearch, setWishlistSearch] = useState("");
   const [outfitCategory, setOutfitCategory] = useState("전체");
-  const [settingsTab, setSettingsTab] = useState("general");
+  const [settingsTab, setSettingsTab] = useState(() => {
+    const savedTab = load("mycloset-settings-tab", "general");
+    return ["general", "closet", "backup", "reset"].includes(savedTab) ? savedTab : "general";
+  });
   const [modal, setModal] = useState(null);
   const [draftOutfit, setDraftOutfit] = useState([]);
   const [draftLookbookIds, setDraftLookbookIds] = useState([]);
@@ -298,6 +324,7 @@ export function App() {
   const [lookbookMemo, setLookbookMemo] = useState("");
   const [lookbookCategory, setLookbookCategory] = useState("전체");
   const [activeLookbookId, setActiveLookbookId] = useState(null);
+  const [activeInspirationId, setActiveInspirationId] = useState(null);
   const [editingLookbookId, setEditingLookbookId] = useState(null);
   const [lookbookApplyDate, setLookbookApplyDate] = useState(TODAY);
   const [lookbookCalendarCursor, setLookbookCalendarCursor] = useState(() => { const today = new Date(); return new Date(today.getFullYear(), today.getMonth(), 1); });
@@ -311,6 +338,11 @@ export function App() {
   const [excelFileName, setExcelFileName] = useState("");
   const [backupFileName, setBackupFileName] = useState("");
   const [pendingBackup, setPendingBackup] = useState(null);
+  const [pendingDeletion, setPendingDeletion] = useState(null);
+  const [pinCaption, setPinCaption] = useState("");
+  const [pinSourceUrl, setPinSourceUrl] = useState("");
+  const [pinImage, setPinImage] = useState("");
+  const [pinFileName, setPinFileName] = useState("");
   const [settingsTarget, setSettingsTarget] = useState(null);
   const [notice, setNotice] = useState("");
   const [noteEditing, setNoteEditing] = useState(false);
@@ -330,12 +362,15 @@ export function App() {
   const wardrobeCollectionRef = useRef(null);
 
   const allCategories = useMemo(() => ["전체", ...categories], [categories]);
+  useEffect(() => localStorage.setItem("mycloset-current-view", JSON.stringify(view)), [view]);
+  useEffect(() => localStorage.setItem("mycloset-settings-tab", JSON.stringify(settingsTab)), [settingsTab]);
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("mycloset-theme", JSON.stringify(theme)); }, [theme]);
   useEffect(() => localStorage.setItem("mycloset-items", JSON.stringify(items)), [items]);
   useEffect(() => localStorage.setItem("mycloset-outfits", JSON.stringify(outfits)), [outfits]);
   useEffect(() => localStorage.setItem("mycloset-outfit-notes", JSON.stringify(outfitNotes)), [outfitNotes]);
   useEffect(() => localStorage.setItem("mycloset-wishlist", JSON.stringify(wishlist)), [wishlist]);
   useEffect(() => localStorage.setItem("mycloset-lookbooks", JSON.stringify(lookbooks)), [lookbooks]);
+  useEffect(() => localStorage.setItem("mycloset-inspirations", JSON.stringify(inspirations)), [inspirations]);
   useEffect(() => localStorage.setItem("mycloset-categories", JSON.stringify(categories)), [categories]);
   useEffect(() => localStorage.setItem("mycloset-wardrobe-view", JSON.stringify(wardrobeView)), [wardrobeView]);
   useEffect(() => {
@@ -357,6 +392,20 @@ export function App() {
     return () => window.removeEventListener("resize", clampDetailWidth);
   }, [sidebarCollapsed]);
   useEffect(() => { if (!notice) return undefined; const timer = setTimeout(() => setNotice(""), 3200); return () => clearTimeout(timer); }, [notice]);
+  useEffect(() => {
+    if (modal !== "inspirationCreate") return undefined;
+    const pasteImage = async (event) => {
+      const imageFile = [...(event.clipboardData?.files ?? [])].find((file) => file.type.startsWith("image/"));
+      if (!imageFile) return;
+      event.preventDefault();
+      try {
+        setPinImage(await fileToDataUrl(imageFile));
+        setPinFileName(imageFile.name || "붙여넣은 이미지");
+      } catch (error) { setNotice(error.message || "이미지를 붙여넣지 못했어요."); }
+    };
+    window.addEventListener("paste", pasteImage);
+    return () => window.removeEventListener("paste", pasteImage);
+  }, [modal]);
   useEffect(() => {
     if (view !== "settings" || settingsTab !== "closet" || settingsTarget !== "wardrobe-data" || !wardrobeDataRef.current) return undefined;
     const frame = requestAnimationFrame(() => {
@@ -381,6 +430,7 @@ export function App() {
   const outfitPickerItems = filterItemsByCategory(items, outfitCategory);
   const lookbookPickerItems = filterItemsByCategory(items, lookbookCategory);
   const activeLookbook = lookbooks.find((lookbook) => lookbook.id === activeLookbookId);
+  const activeInspiration = inspirations.find((inspiration) => inspiration.id === activeInspirationId);
   const editingItem = items.find((item) => item.id === editingItemId);
   const selectedDateLabel = selectedDate.replaceAll("-", ". ");
   const selectedNote = outfitNotes[selectedDate] ?? "";
@@ -398,7 +448,7 @@ export function App() {
     setCalendarOpen(false);
   };
   const openWardrobeDataSettings = () => { setSettingsTarget("wardrobe-data"); setView("settings"); setSettingsTab("closet"); };
-  const closeModal = () => { setModal(null); setEditingItemId(null); setActiveLookbookId(null); setEditingLookbookId(null); setItemFileName(""); setWishFileName(""); setPendingBackup(null); setProductDraft(null); setProductLookupLoading(false); setProductLookupError(""); };
+  const closeModal = () => { setModal(null); setEditingItemId(null); setActiveLookbookId(null); setActiveInspirationId(null); setEditingLookbookId(null); setItemFileName(""); setWishFileName(""); setPinCaption(""); setPinSourceUrl(""); setPinImage(""); setPinFileName(""); setPendingBackup(null); setPendingDeletion(null); setProductDraft(null); setProductLookupLoading(false); setProductLookupError(""); };
   const openOutfit = () => { setDraftOutfit([...(outfits[selectedDate] ?? [])]); setOutfitCategory("전체"); setModal("outfit"); };
   const openNewItem = () => { setEditingItemId(null); setItemFileName(""); setProductDraft(null); setProductLookupError(""); setModal("itemUrl"); };
   const openNewWish = () => { setWishFileName(""); setProductDraft(null); setProductLookupError(""); setModal("wishUrl"); };
@@ -486,9 +536,69 @@ export function App() {
     closeModal();
     setNotice(`${activeLookbook.name}을(를) ${targetDate.replaceAll("-", ". ")}에 적용했어요.`);
   };
-  const deleteLookbook = (id) => {
-    setLookbooks((current) => current.filter((lookbook) => lookbook.id !== id));
+  const openLookbookDelete = (lookbook) => {
+    setPendingDeletion({ type: "lookbook", id: lookbook.id, name: lookbook.name });
+    setModal("confirmLookbook");
+  };
+  const deleteLookbook = () => {
+    if (pendingDeletion?.type !== "lookbook") return;
+    setLookbooks((current) => current.filter((lookbook) => lookbook.id !== pendingDeletion.id));
+    closeModal();
     setNotice("룩북을 삭제했어요.");
+  };
+  const openInspirationCreator = () => {
+    setPinCaption("");
+    setPinSourceUrl("");
+    setPinImage("");
+    setPinFileName("");
+    setModal("inspirationCreate");
+  };
+  const openInspirationViewer = (pin) => {
+    setActiveInspirationId(pin.id);
+    setModal("inspirationViewer");
+  };
+  const handlePinFile = async (file) => {
+    if (!file) return;
+    try {
+      setPinImage(await fileToDataUrl(file));
+      setPinFileName(file.name);
+    } catch (error) { setNotice(error.message || "이미지를 불러오지 못했어요."); }
+  };
+  const saveInspiration = (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const imageUrl = String(data.get("imageUrl") || "").trim();
+    const image = pinImage || imageUrl;
+    if (!image) { setNotice("코디 이미지 URL을 입력하거나 이미지를 붙여넣어 주세요."); return; }
+    setInspirations((current) => [{
+      id: `inspiration-${Date.now()}`,
+      image,
+      caption: pinCaption.trim(),
+      sourceUrl: pinSourceUrl.trim(),
+      createdAt: new Date().toISOString(),
+    }, ...current]);
+    closeModal();
+    setNotice("마음에 든 코디를 스크랩했어요.");
+  };
+  const openInspirationDelete = (pin) => {
+    setPendingDeletion({ type: "inspiration", id: pin.id, name: pin.caption || "저장한 코디" });
+    setModal("confirmInspiration");
+  };
+  const deleteInspiration = () => {
+    if (pendingDeletion?.type !== "inspiration") return;
+    setInspirations((current) => current.filter((pin) => pin.id !== pendingDeletion.id));
+    closeModal();
+    setNotice("스크랩을 삭제했어요.");
+  };
+  const openWishlistDelete = (item) => {
+    setPendingDeletion({ type: "wishlist", id: item.id, name: item.name });
+    setModal("confirmWishlist");
+  };
+  const deleteWishlistItem = () => {
+    if (pendingDeletion?.type !== "wishlist") return;
+    setWishlist((current) => current.filter((item) => item.id !== pendingDeletion.id));
+    closeModal();
+    setNotice("위시리스트에서 삭제했어요.");
   };
   const addItemToSelectedOutfit = (id) => {
     if (!itemMap[id]) return;
@@ -787,7 +897,7 @@ export function App() {
 
   const exportBackup = () => {
     const payload = createBackupPayload(
-      { items, categories, outfits, outfitNotes, lookbooks, wishlist },
+      { items, categories, outfits, outfitNotes, lookbooks, wishlist, inspirations },
       { theme, sidebarCollapsed, detailWidth, wardrobeView, wardrobeSort, lookbookSort, wishlistSort },
     );
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -823,6 +933,7 @@ export function App() {
     setOutfitNotes(data.outfitNotes);
     setLookbooks(data.lookbooks);
     setWishlist(data.wishlist);
+    setInspirations(data.inspirations ?? []);
     if (preferences.theme === "light" || preferences.theme === "dark") setTheme(preferences.theme);
     if (typeof preferences.sidebarCollapsed === "boolean") setSidebarCollapsed(preferences.sidebarCollapsed);
     if (preferences.wardrobeView === "grid" || preferences.wardrobeView === "table") setWardrobeView(preferences.wardrobeView);
@@ -913,25 +1024,35 @@ export function App() {
     </main>}
 
     {view === "lookbook" && <main className="collection-page lookbook-page">
-      <header className="collection-header"><div><h1>룩북</h1><p>미리 구성한 착장과 마음에 들었던 조합을 보관하고, 원하는 날짜에 다시 꺼내 입어보세요.</p></div>{lookbooks.length > 0 && <button className="primary-button compact" onClick={() => openLookbookCreator()}><Plus size={19}/>새 룩북</button>}</header>
-      {lookbooks.length ? <>
-        <div className="collection-sort-row has-search"><SearchField value={lookbookSearch} onChange={setLookbookSearch} label="룩북 검색" placeholder="룩북 이름, 메모, 포함된 옷 검색"/><SortControl label="룩북 정렬" value={lookbookSort} onChange={setLookbookSort}><option value="recent">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option><option value="items">아이템 많은 순</option></SortControl></div>
-        {sortedLookbooks.length ? <section className="lookbook-grid">{sortedLookbooks.map((lookbook) => { const lookbookItems = lookbook.itemIds.map((id) => itemMap[id]).filter(Boolean); return <article className="lookbook-card" key={lookbook.id}><div className={`lookbook-mosaic count-${Math.min(lookbookItems.length, 4)}`}>{lookbookItems.slice(0, 4).map((item) => <div className="lookbook-piece" key={item.id}><ItemVisual item={item}/></div>)}</div><div className="lookbook-card-body"><div className="lookbook-title-row"><h2>{lookbook.name}</h2><button className="icon-button subtle" onClick={() => deleteLookbook(lookbook.id)} aria-label={`${lookbook.name} 삭제`} title="룩북 삭제"><Trash size={17}/></button></div><p>{lookbook.memo || "다시 입고 싶은 조합으로 저장한 룩북이에요."}</p><div className="lookbook-item-list">{lookbookItems.map((item) => <span key={item.id}>{item.name}</span>)}</div><footer><span>{lookbookItems.length}개의 아이템</span><div className="lookbook-card-actions"><button className="secondary-button compact" onClick={() => openLookbookEditor(lookbook.id)}><PencilSimple size={18}/>수정</button><button className="primary-button compact" onClick={() => openLookbookApply(lookbook.id)}><CalendarPlus size={18}/>날짜에 적용</button></div></footer></div></article>; })}</section> : <SearchEmptyState subject="룩북" query={lookbookSearch} onClear={() => setLookbookSearch("")}/>}
-      </> : <section className="collection-empty-state"><span className="empty-state-icon"><BookOpen size={28} weight="light"/></span><div className="empty-state-copy"><h2>{items.length ? "첫 룩북을 만들어볼까요?" : "룩북을 만들 옷이 필요해요"}</h2><p>{items.length ? "자주 입고 싶은 조합을 구성해 룩북으로 저장하세요." : "먼저 옷을 등록한 뒤 마음에 드는 조합을 룩북으로 저장해보세요."}</p></div><div className="empty-state-actions"><button className="primary-button compact" onClick={items.length ? () => openLookbookCreator() : openNewItem}><Plus size={18}/>{items.length ? "첫 룩북 만들기" : "첫 옷 등록"}</button></div></section>}
+      <header className="collection-header"><div><h1>룩북</h1><p>내 옷으로 구성한 룩과 온라인에서 발견한 코디 영감을 한곳에 모아보세요.</p></div><div className="header-actions"><button className="secondary-button compact" onClick={openInspirationCreator}><ImageSquare size={18}/>스크랩</button>{lookbooks.length > 0 && <button className="primary-button compact" onClick={() => openLookbookCreator()}><Plus size={19}/>새 룩북</button>}</div></header>
+      <div className="lookbook-content-layout">
+        <section className="owned-lookbooks" aria-labelledby="owned-lookbooks-title">
+          <div className="lookbook-section-heading owned-lookbook-toolbar"><div><h2 id="owned-lookbooks-title">내 옷 조합</h2><p>옷장 속 아이템으로 만든, 날짜에 적용할 수 있는 룩이에요.</p></div>{lookbooks.length > 0 && <div className="lookbook-heading-tools"><SearchField value={lookbookSearch} onChange={setLookbookSearch} label="룩북 검색" placeholder="룩북 이름, 메모, 포함된 옷 검색"/><SortControl label="룩북 정렬" value={lookbookSort} onChange={setLookbookSort}><option value="recent">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option><option value="items">아이템 많은 순</option></SortControl></div>}</div>
+          {lookbooks.length ? <>
+            {sortedLookbooks.length ? <div className="lookbook-grid">{sortedLookbooks.map((lookbook) => { const lookbookItems = lookbook.itemIds.map((id) => itemMap[id]).filter(Boolean); return <article className="lookbook-card" key={lookbook.id}><div className={`lookbook-mosaic count-${Math.min(lookbookItems.length, 4)}`}>{lookbookItems.slice(0, 4).map((item) => <div className="lookbook-piece" key={item.id}><ItemVisual item={item}/></div>)}</div><div className="lookbook-card-body"><div className="lookbook-title-row"><h2>{lookbook.name}</h2><button className="icon-button subtle" onClick={() => openLookbookDelete(lookbook)} aria-label={`${lookbook.name} 삭제`} title="룩북 삭제"><Trash size={17}/></button></div><p>{lookbook.memo || "다시 입고 싶은 조합으로 저장한 룩북이에요."}</p><div className="lookbook-item-list">{lookbookItems.map((item) => <span key={item.id}>{item.name}</span>)}</div><footer><span>{lookbookItems.length}개의 아이템</span><div className="lookbook-card-actions"><button className="secondary-button compact" onClick={() => openLookbookEditor(lookbook.id)}><PencilSimple size={18}/>수정</button><button className="primary-button compact" onClick={() => openLookbookApply(lookbook.id)}><CalendarPlus size={18}/>날짜에 적용</button></div></footer></div></article>; })}</div> : <SearchEmptyState subject="룩북" query={lookbookSearch} onClear={() => setLookbookSearch("")}/>} {/* 룩북 검색 결과 */}
+          </> : <section className="collection-empty-state lookbook-column-empty"><span className="empty-state-icon"><BookOpen size={28} weight="light"/></span><div className="empty-state-copy"><h2>{items.length ? "첫 룩북을 만들어볼까요?" : "룩북을 만들 옷이 필요해요"}</h2><p>{items.length ? "자주 입고 싶은 조합을 구성해 룩북으로 저장하세요." : "먼저 옷을 등록한 뒤 마음에 드는 조합을 룩북으로 저장해보세요."}</p></div><div className="empty-state-actions"><button className="primary-button compact" onClick={items.length ? () => openLookbookCreator() : openNewItem}><Plus size={18}/>{items.length ? "첫 룩북 만들기" : "첫 옷 등록"}</button></div></section>}
+        </section>
+        <aside className="inspiration-board" aria-labelledby="inspiration-board-title">
+          <div className="lookbook-section-heading inspiration-heading"><div><h2 id="inspiration-board-title">스크랩</h2></div><button className="icon-button subtle" onClick={openInspirationCreator} aria-label="새 스크랩 저장" title="스크랩 추가"><Plus size={18}/></button></div>
+          {inspirations.length ? <div className="inspiration-masonry">{inspirations.map((pin) => <article className="inspiration-pin" key={pin.id}><div className="inspiration-pin-visual"><button type="button" className="inspiration-image-button" onClick={() => openInspirationViewer(pin)} aria-label={`${pin.caption || "저장한 코디"} 크게 보기`}><img src={pin.image} alt={pin.caption || "저장한 코디 참고 이미지"}/></button><button className="pin-delete-button" onClick={() => openInspirationDelete(pin)} aria-label={`${pin.caption || "스크랩"} 삭제`} title="스크랩 삭제"><Trash size={16}/></button>{pin.sourceUrl && <a href={pin.sourceUrl} target="_blank" rel="noreferrer" aria-label="원본 링크 열기" title="원본 링크 열기"><LinkIcon size={16}/></a>}</div>{pin.caption && <p>{pin.caption}</p>}</article>)}</div> : <button className="inspiration-empty" onClick={openInspirationCreator}><span><ImageSquare size={25}/></span><strong>첫 코디를 스크랩해보세요</strong><small>이미지를 복사해 붙여넣거나 파일·URL로 저장할 수 있어요.</small></button>}
+        </aside>
+      </div>
     </main>}
 
-    {view === "wishlist" && <main className="collection-page"><header className="collection-header"><div><h1>위시리스트</h1><p>사고 싶은 아이템의 링크와 이유를 가볍게 모아두세요.</p></div>{wishlist.length > 0 && <button className="primary-button compact" onClick={openNewWish}><Plus size={19}/>아이템 스크랩</button>}</header>{wishlist.length ? <><div className="collection-sort-row has-search wishlist-tools"><span>아이템 {wishlist.length}개</span><SearchField value={wishlistSearch} onChange={setWishlistSearch} label="위시리스트 검색" placeholder="이름, 브랜드, 분류, 색상 검색"/><SortControl label="위시리스트 정렬" value={wishlistSort} onChange={setWishlistSort}><option value="recent">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option><option value="brand">브랜드순</option></SortControl></div>{sortedWishlist.length ? <section className="wishlist-list">{sortedWishlist.map((item) => <article className="wish-row" key={item.id}><div className="wish-visual"><ItemVisual item={item}/></div><div className="wish-copy"><span className="status-chip">{item.status}</span><h3>{item.name}</h3><p>{item.brand || "브랜드 미지정"} · {item.category}{item.color ? ` · ${item.color}` : ""}</p></div>{item.url && <a href={item.url} target="_blank" rel="noreferrer"><LinkIcon size={18}/>상품 보기</a>}<button className="icon-button subtle" onClick={() => setWishlist((current) => current.filter((entry) => entry.id !== item.id))} aria-label="삭제"><Trash size={18}/></button></article>)}</section> : <SearchEmptyState subject="아이템" query={wishlistSearch} onClear={() => setWishlistSearch("")}/>}</> : <section className="collection-empty-state wishlist-empty-state"><span className="empty-state-icon"><Heart size={28} weight="light"/></span><div className="empty-state-copy"><h2>마음에 둔 상품이 있나요?</h2><p>상품 URL을 저장하면 이름과 이미지를 자동으로 가져와 나중에 다시 볼 수 있어요.</p></div><div className="empty-state-actions"><button className="primary-button compact" onClick={openNewWish}><Plus size={18}/>첫 아이템 저장</button></div></section>}</main>}
+    {view === "wishlist" && <main className="collection-page"><header className="collection-header"><div><h1>위시리스트</h1><p>사고 싶은 아이템의 링크와 이유를 가볍게 모아두세요.</p></div>{wishlist.length > 0 && <button className="primary-button compact" onClick={openNewWish}><Plus size={19}/>아이템 스크랩</button>}</header>{wishlist.length ? <><div className="collection-sort-row has-search wishlist-tools"><span>아이템 {wishlist.length}개</span><SearchField value={wishlistSearch} onChange={setWishlistSearch} label="위시리스트 검색" placeholder="이름, 브랜드, 분류, 색상 검색"/><SortControl label="위시리스트 정렬" value={wishlistSort} onChange={setWishlistSort}><option value="recent">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option><option value="brand">브랜드순</option></SortControl></div>{sortedWishlist.length ? <section className="wishlist-list">{sortedWishlist.map((item) => <article className="wish-row" key={item.id}><div className="wish-visual"><ItemVisual item={item}/></div><div className="wish-copy"><span className="status-chip">{item.status}</span><h3>{item.name}</h3><p>{item.brand || "브랜드 미지정"} · {item.category}{item.color ? ` · ${item.color}` : ""}</p></div>{item.url && <a href={item.url} target="_blank" rel="noreferrer"><LinkIcon size={18}/>상품 보기</a>}<button className="icon-button subtle" onClick={() => openWishlistDelete(item)} aria-label={item.name + " 삭제"} title="위시리스트 삭제"><Trash size={18}/></button></article>)}</section> : <SearchEmptyState subject="아이템" query={wishlistSearch} onClear={() => setWishlistSearch("")}/>}</> : <section className="collection-empty-state wishlist-empty-state"><span className="empty-state-icon"><Heart size={28} weight="light"/></span><div className="empty-state-copy"><h2>마음에 둔 상품이 있나요?</h2><p>상품 URL을 저장하면 이름과 이미지를 자동으로 가져와 나중에 다시 볼 수 있어요.</p></div><div className="empty-state-actions"><button className="primary-button compact" onClick={openNewWish}><Plus size={18}/>첫 아이템 저장</button></div></section>}</main>}
 
     {view === "settings" && <main className="settings-page"><header className="settings-header"><h1>설정</h1><p>화면 분위기와 옷장 데이터 구조를 한곳에서 관리하세요.</p></header><div className="settings-layout"><nav className="settings-tabs"><button className={settingsTab === "general" ? "active" : ""} onClick={() => setSettingsTab("general")}>일반</button><button className={settingsTab === "closet" || settingsTab === "excel" ? "active" : ""} onClick={() => setSettingsTab("closet")}>옷장</button><button className={settingsTab === "backup" ? "active" : ""} onClick={() => setSettingsTab("backup")}>백업</button><button className={settingsTab === "reset" ? "active" : ""} onClick={() => setSettingsTab("reset")}>초기화</button></nav><section className="settings-content">
       {settingsTab === "general" && <div className="settings-panel"><div className="panel-heading"><div><h2>화면 모드</h2><p>필요할 때 언제든 라이트와 다크 모드를 바꿀 수 있어요.</p></div></div><div className="theme-options"><button className={theme === "light" ? "selected" : ""} onClick={() => setTheme("light")}><Sun size={24}/><span><strong>라이트</strong><small>밝고 여백감 있는 화면</small></span>{theme === "light" && <CheckCircle size={21} weight="fill"/>}</button><button className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><Moon size={24}/><span><strong>다크</strong><small>차분하고 눈이 편한 화면</small></span>{theme === "dark" && <CheckCircle size={21} weight="fill"/>}</button></div></div>}
       {settingsTab === "closet" && <div className="settings-panel"><div className="panel-heading"><div><h2>카테고리 관리</h2><p>한 줄 목록에서 드래그하거나 위아래 화살표로 순서를 바꿔보세요. 변경한 순서는 착장과 옷장에 바로 반영됩니다.</p></div></div><form className="inline-form" onSubmit={addCategory}><input name="categoryName" aria-label="새 카테고리 이름" placeholder="예: 운동복"/><button className="primary-button compact"><Plus size={18}/>추가</button></form><div className="category-manager">{categories.map((name, index) => { const used = items.some((item) => item.category === name); return <div className={`category-row${draggedCategoryName === name ? " is-dragging" : ""}${categoryDropTarget === name && draggedCategoryName !== name ? " is-drop-target" : ""}`} key={name} onDragEnter={() => setCategoryDropTarget(name)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => finishCategoryDrop(event, name)}><button type="button" className="category-drag-handle" draggable onDragStart={(event) => startCategoryDrag(event, name)} onDragEnd={() => { setDraggedCategoryName(null); setCategoryDropTarget(null); }} onKeyDown={(event) => handleCategoryKeyDown(event, name)} aria-label={`${name} 순서 변경. 위아래 화살표 키 사용`} title="드래그해서 순서 변경"><DotsSixVertical size={18} weight="bold"/></button><span>{name}<small>{items.filter((item) => item.category === name).length}개</small></span><div className="category-order-actions"><button type="button" className="category-order-button" onClick={() => moveCategory(name, -1)} aria-label={`${name} 위로 이동`} disabled={index === 0}><CaretUp size={15} weight="bold"/></button><button type="button" className="category-order-button" onClick={() => moveCategory(name, 1)} aria-label={`${name} 아래로 이동`} disabled={index === categories.length - 1}><CaretDown size={15} weight="bold"/></button><button type="button" className="icon-button subtle" onClick={() => deleteCategory(name)} aria-label={`${name} 삭제`} disabled={used} title={used ? "사용 중인 카테고리" : "카테고리 삭제"}><Trash size={17}/></button></div></div>; })}</div></div>}
       {settingsTab === "closet" && <div className="settings-panel excel-panel" id="wardrobe-data-management" ref={wardrobeDataRef} tabIndex={-1}><div className="panel-heading"><div><h2>옷장 데이터 관리</h2><p>옷장 데이터를 Excel로 가져오거나 현재 데이터를 파일로 저장할 수 있어요.</p></div><FileXls size={32}/></div><div className="excel-actions"><section className="excel-action-card"><div><strong>Excel에서 옷 가져오기</strong><small>최신 템플릿을 작성한 뒤 업로드하면 옷장 목록에 추가돼요.</small></div><div className="excel-action-controls"><a className="secondary-button compact" href={TEMPLATE_URL} download><DownloadSimple size={18}/>템플릿 받기</a><FilePicker id="excel-upload" name="excelFile" accept=".xlsx,.xls" fileName={excelFileName} label="Excel 가져오기" icon="excel" compact tone="primary" onChange={(event) => importExcel(event.target.files?.[0])}/></div></section><section className="excel-action-card"><div><strong>현재 옷장 내보내기</strong><small>{items.length ? `등록된 옷 ${items.length}개의 정보를 Excel 파일로 저장해요.` : "등록된 옷이 없어요. 버튼을 누르면 필요한 작업을 안내해드려요."}</small></div><button type="button" className="secondary-button compact" onClick={exportExcel}><DownloadSimple size={18}/>Excel 내보내기</button></section></div><p className="excel-notice">Excel은 옷장 데이터만 관리합니다. 착장, 메모, 룩북, 위시리스트는 포함되지 않아요. 직접 업로드한 이미지 파일은 내보내지 않으며 웹 이미지 URL만 유지합니다.</p></div>}
-      {settingsTab === "backup" && <div className="settings-panel backup-panel"><div className="panel-heading"><div><h2>전체 데이터 백업</h2><p>브라우저를 옮기거나 데이터를 안전하게 보관할 때 전체 백업을 사용하세요.</p></div><DownloadSimple size={32}/></div><div className="backup-actions"><section className="excel-action-card"><div><strong>전체 데이터 내보내기</strong><small>옷과 이미지, 착장, 메모, 룩북, 위시리스트 및 화면 설정을 JSON 파일로 저장해요.</small></div><button type="button" className="secondary-button compact" onClick={exportBackup}><DownloadSimple size={18}/>백업 다운로드</button></section><section className="excel-action-card"><div><strong>백업 파일 가져오기</strong><small>선택한 백업의 내용으로 현재 브라우저 데이터를 교체해요.</small></div><FilePicker id="backup-upload" name="backupFile" accept=".json,application/json" fileName={backupFileName} label="백업 가져오기" compact tone="primary" onChange={(event) => prepareBackupImport(event.target.files?.[0])}/></section></div><p className="backup-notice">업로드한 이미지도 백업에 포함됩니다. 가져오기는 현재 데이터를 교체하므로 필요한 경우 먼저 백업을 내려받아 안전하게 보관하세요.</p></div>}
+      {settingsTab === "backup" && <div className="settings-panel backup-panel"><div className="panel-heading"><div><h2>전체 데이터 백업</h2><p>브라우저를 옮기거나 데이터를 안전하게 보관할 때 전체 백업을 사용하세요.</p></div><DownloadSimple size={32}/></div><div className="backup-actions"><section className="excel-action-card"><div><strong>전체 데이터 내보내기</strong><small>옷과 이미지, 착장, 메모, 룩북, 스크랩, 위시리스트 및 화면 설정을 JSON 파일로 저장해요.</small></div><button type="button" className="secondary-button compact" onClick={exportBackup}><DownloadSimple size={18}/>백업 다운로드</button></section><section className="excel-action-card"><div><strong>백업 파일 가져오기</strong><small>선택한 백업의 내용으로 현재 브라우저 데이터를 교체해요.</small></div><FilePicker id="backup-upload" name="backupFile" accept=".json,application/json" fileName={backupFileName} label="백업 가져오기" compact tone="primary" onChange={(event) => prepareBackupImport(event.target.files?.[0])}/></section></div><p className="backup-notice">업로드한 이미지와 스크랩도 백업에 포함됩니다. 가져오기는 현재 데이터를 교체하므로 필요한 경우 먼저 백업을 내려받아 안전하게 보관하세요.</p></div>}
       {settingsTab === "reset" && <div className="settings-panel settings-danger-zone"><div className="panel-heading"><div><h2>데이터 초기화</h2><p>옷장을 처음부터 다시 정리합니다. 옷을 기준으로 저장된 착장과 메모, 룩북도 함께 삭제됩니다.</p></div></div><div className="danger-zone-action"><div><strong>옷장 데이터 초기화</strong><small>위시리스트와 화면 모드·사이드바 설정은 유지됩니다.</small></div><button type="button" className="danger-button" onClick={() => setModal("confirmResetWardrobe")}><Trash size={18}/>초기화</button></div></div>}
     </section></div></main>}
 
     {modal === "outfit" && <Modal title="착장 고르기" subtitle={selectedDateLabel} eyebrow="" onClose={closeModal} wide><div className="category-tabs modal-tabs">{allCategories.map((name) => <button className={outfitCategory === name ? "active" : ""} onClick={() => setOutfitCategory(name)} key={name}>{name}</button>)}</div><div className="outfit-picker-body">{outfitPickerItems.length ? <div className="picker-grid">{outfitPickerItems.map((item) => { const checked = draftOutfit.includes(item.id); return <button type="button" className={checked ? "selected" : ""} onClick={() => toggleDraft(item.id)} key={item.id}><div className="picker-visual"><ItemVisual item={item}/></div><span><strong>{item.name}</strong><small>{item.brand || "브랜드 미지정"}</small><small>{item.category} · {item.color || "색상 미지정"}</small></span>{checked && <i className="check"><Check size={15} weight="bold"/></i>}</button>; })}</div> : <div className="picker-empty">이 카테고리에는 등록된 옷이 없어요.</div>}</div><footer className="modal-actions">{selectedItems.length > 0 && <button className="danger-button outfit-modal-delete" onClick={() => setModal("confirmOutfit")}><Trash size={18}/>착장 삭제</button>}<span className="action-spacer"/><button className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={saveOutfit}>착장 저장</button></footer></Modal>}
     {modal === "lookbookCreate" && <Modal title={editingLookbookId ? "룩북 수정" : "룩북 만들기"} subtitle={editingLookbookId ? "이름과 메모, 옷 구성을 변경하세요" : "다시 입고 싶은 조합을 한곳에 저장해두세요"} eyebrow="" onClose={closeModal} wide className="lookbook-editor-modal"><div className="category-tabs modal-tabs" aria-label="옷 카테고리">{allCategories.map((name) => <button type="button" className={lookbookCategory === name ? "active" : ""} aria-pressed={lookbookCategory === name} onClick={() => setLookbookCategory(name)} key={name}>{name}</button>)}</div><div className="lookbook-picker-summary" aria-live="polite"><strong>{draftLookbookIds.length}개 선택</strong><span>함께 입을 옷을 골라 하나의 룩으로 구성해보세요.</span></div><div className="outfit-picker-body">{lookbookPickerItems.length ? <div className="picker-grid">{lookbookPickerItems.map((item) => { const checked = draftLookbookIds.includes(item.id); return <button type="button" className={checked ? "selected" : ""} aria-pressed={checked} onClick={() => toggleLookbookDraft(item.id)} key={item.id}><div className="picker-visual"><ItemVisual item={item}/></div><span><strong>{item.name}</strong><small>{item.brand || "브랜드 미지정"}</small><small>{item.category} · {item.color || "색상 미지정"}</small></span>{checked && <i className="check"><Check size={15} weight="bold"/></i>}</button>; })}</div> : <div className="picker-empty">이 카테고리에는 등록된 옷이 없어요.</div>}</div><div className="lookbook-form-fields"><label><FieldTitle required>룩북 이름</FieldTitle><input value={lookbookName} onChange={(event) => setLookbookName(event.target.value)} placeholder="예: 비 오는 날 출근룩"/></label><label><FieldTitle>메모</FieldTitle><input value={lookbookMemo} onChange={(event) => setLookbookMemo(event.target.value)} placeholder="언제, 어떤 분위기로 입을지 적어두세요"/></label></div><footer className="modal-actions"><button className="secondary-button compact" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={saveLookbook}>{editingLookbookId ? "수정 저장" : "룩북 저장"}</button></footer></Modal>}
+    {modal === "inspirationCreate" && <Modal title="스크랩 저장" subtitle="온라인에서 발견한 스타일을 참고용으로 모아두세요" eyebrow="" onClose={closeModal} compact className="inspiration-modal"><form className="entry-form inspiration-form" onSubmit={saveInspiration}><div className={`pin-paste-zone${pinImage ? " has-image" : ""}`} tabIndex={0}>{pinImage ? <><img src={pinImage} alt="저장할 코디 미리보기"/><button type="button" className="pin-preview-remove" onClick={() => { setPinImage(""); setPinFileName(""); }} aria-label="선택한 이미지 제거"><X size={16}/></button></> : <><span><ImageSquare size={28}/></span><strong>이미지를 여기에 붙여넣으세요</strong><small>스크린샷을 복사한 뒤 ⌘V 또는 Ctrl+V</small></>}</div><div className="field-group"><FieldTitle required>이미지 URL 또는 파일</FieldTitle><div className="image-source-row"><div className="input-with-icon"><ImageSquare size={19}/><input name="imageUrl" type="url" inputMode="url" disabled={Boolean(pinImage)} placeholder="https://image.example.com/look.jpg"/></div><input id="pin-image-file" className="visually-hidden-input" type="file" accept="image/*" onChange={(event) => handlePinFile(event.target.files?.[0])}/><label className="image-upload-button" htmlFor="pin-image-file"><UploadSimple size={18}/><span>파일</span></label></div><small className={`field-help${pinFileName ? " selected" : ""}`}>{pinFileName ? `${pinFileName} 선택됨` : "직접 이미지 주소를 입력하거나 JPG, PNG, WEBP 파일을 선택하세요. 최대 2.5MB"}</small></div><label><FieldTitle>캡션</FieldTitle><input value={pinCaption} onChange={(event) => setPinCaption(event.target.value)} maxLength={80} placeholder="예: 여름 여행용 뉴트럴 레이어드"/></label><label><FieldTitle>원본 URL</FieldTitle><div className="input-with-icon"><LinkIcon size={19}/><input type="url" value={pinSourceUrl} onChange={(event) => setPinSourceUrl(event.target.value)} placeholder="https://pinterest.com/…"/></div></label><p className="pin-reference-note">스크랩은 참고용으로만 저장되며 착장 날짜에는 적용되지 않아요.</p><footer className="modal-actions"><button type="button" className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact">스크랩 저장</button></footer></form></Modal>}
+    {modal === "inspirationViewer" && activeInspiration && <InspirationViewer inspiration={activeInspiration} onClose={closeModal}/>}
     {modal === "lookbookApply" && activeLookbook && <Modal title="날짜에 적용" subtitle={activeLookbook.name} eyebrow="" onClose={closeModal} compact className="lookbook-apply-modal"><div className="lookbook-apply-copy"><CalendarPlus size={28}/><div><strong>{activeLookbook.itemIds.filter((id) => itemMap[id]).length}개의 아이템을 적용할 날짜</strong><span>선택한 날짜의 기존 착장이 있다면 이 룩북으로 교체됩니다.</span></div></div><CompactCalendar className="lookbook-apply-calendar" ariaLabel="룩북을 적용할 날짜 선택" cursor={lookbookCalendarCursor} onCursorChange={setLookbookCalendarCursor} selectedDate={lookbookApplyDate} onSelectDate={setLookbookApplyDate} outfits={outfits}/>{(outfits[lookbookApplyDate] ?? []).length > 0 && <p className="lookbook-overwrite-note">이 날짜에는 이미 착장이 있어요. 적용하면 현재 조합이 교체됩니다.</p>}<footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={applyLookbook}>이 날짜에 적용</button></footer></Modal>}
     {modal === "itemUrl" && <Modal title="상품 URL로 옷 등록" subtitle="링크를 분석한 뒤 입력 내용을 확인할 수 있어요" onClose={closeModal} compact className="product-url-modal"><ProductUrlStep kind="item" loading={productLookupLoading} error={productLookupError} onSubmit={(event) => lookupProduct(event, "item")} onManual={() => openManualRegistration("item")}/></Modal>}
     {modal === "wishUrl" && <Modal title="상품 URL로 위시리스트 등록" subtitle="링크를 분석한 뒤 입력 내용을 확인할 수 있어요" onClose={closeModal} compact className="product-url-modal"><ProductUrlStep kind="wish" loading={productLookupLoading} error={productLookupError} onSubmit={(event) => lookupProduct(event, "wish")} onManual={() => openManualRegistration("wish")}/></Modal>}
@@ -939,8 +1060,11 @@ export function App() {
     {modal === "editItem" && editingItem && <Modal title="옷 정보 수정" onClose={closeModal} className="item-editor-modal">{renderItemForm({ mode: "edit" })}</Modal>}
     {modal === "confirmOutfit" && <Modal title="이 착장을 삭제할까요?" onClose={() => setModal("outfit")} compact><div className="confirm-copy"><Trash size={24}/><p><strong>{selectedDateLabel} 착장과 메모가 삭제됩니다.</strong><span>삭제 후에는 되돌릴 수 없어요.</span></p></div><footer className="modal-actions"><button className="secondary-button" onClick={() => setModal("outfit")}>취소</button><button className="danger-button filled" onClick={deleteOutfit}>착장 삭제</button></footer></Modal>}
     {modal === "confirmItem" && editingItem && <Modal title="이 옷을 삭제할까요?" onClose={() => setModal("editItem")} compact><div className="confirm-copy"><Trash size={24}/><p><strong>{editingItem.name}이(가) 옷장에서 삭제됩니다.</strong><span>저장된 착장에서도 함께 제거되며 되돌릴 수 없어요.</span></p></div><footer className="modal-actions"><button className="secondary-button" onClick={() => setModal("editItem")}>취소</button><button className="danger-button filled" onClick={deleteItem}>옷 삭제</button></footer></Modal>}
+    {modal === "confirmLookbook" && pendingDeletion?.type === "lookbook" && <Modal title="이 룩북을 삭제할까요?" onClose={closeModal} compact><div className="confirm-copy"><Trash size={24}/><p><strong>{pendingDeletion.name} 룩북이 삭제됩니다.</strong><span>이미 날짜에 적용한 착장은 유지되며, 룩북 삭제 후에는 되돌릴 수 없어요.</span></p></div><footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="danger-button filled" onClick={deleteLookbook}>룩북 삭제</button></footer></Modal>}
+    {modal === "confirmWishlist" && pendingDeletion?.type === "wishlist" && <Modal title="이 아이템을 삭제할까요?" onClose={closeModal} compact><div className="confirm-copy"><Trash size={24}/><p><strong>{pendingDeletion.name}이(가) 위시리스트에서 삭제됩니다.</strong><span>삭제 후에는 되돌릴 수 없어요.</span></p></div><footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="danger-button filled" onClick={deleteWishlistItem}>아이템 삭제</button></footer></Modal>}
+    {modal === "confirmInspiration" && pendingDeletion?.type === "inspiration" && <Modal title="이 스크랩을 삭제할까요?" onClose={closeModal} compact><div className="confirm-copy"><Trash size={24}/><p><strong>{pendingDeletion.name} 스크랩이 삭제됩니다.</strong><span>삭제 후에는 되돌릴 수 없어요.</span></p></div><footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="danger-button filled" onClick={deleteInspiration}>스크랩 삭제</button></footer></Modal>}
     {modal === "confirmResetWardrobe" && <Modal title="옷장 데이터를 초기화할까요?" onClose={closeModal} compact><div className="confirm-copy reset-confirm-copy"><Trash size={24}/><div><strong>연결된 데이터가 모두 삭제됩니다.</strong><ul><li>옷 {items.length}개와 커스텀 카테고리</li><li>착장 {Object.values(outfits).filter((ids) => ids.length).length}일과 날짜별 메모</li><li>룩북 {lookbooks.length}개</li></ul><span>위시리스트와 화면 설정은 유지되며, 초기화 후에는 되돌릴 수 없습니다.</span></div></div><footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="danger-button filled" onClick={resetWardrobeData}>모두 초기화</button></footer></Modal>}
-    {modal === "confirmBackupImport" && pendingBackup && <Modal title="백업 데이터를 가져올까요?" onClose={closeModal} compact><div className="confirm-copy backup-confirm-copy"><UploadSimple size={24}/><div><strong>{backupFileName}</strong><ul><li>옷 {pendingBackup.data.items.length}개 · 카테고리 {pendingBackup.data.categories.length}개</li><li>착장 {Object.values(pendingBackup.data.outfits).filter((ids) => Array.isArray(ids) && ids.length).length}일 · 룩북 {pendingBackup.data.lookbooks.length}개</li><li>위시리스트 {pendingBackup.data.wishlist.length}개</li></ul><span>현재 브라우저의 전체 데이터가 이 파일 내용으로 교체됩니다. 필요하다면 먼저 현재 데이터를 내보내 주세요.</span></div></div><footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={importBackup}>가져오기</button></footer></Modal>}
+    {modal === "confirmBackupImport" && pendingBackup && <Modal title="백업 데이터를 가져올까요?" onClose={closeModal} compact><div className="confirm-copy backup-confirm-copy"><UploadSimple size={24}/><div><strong>{backupFileName}</strong><ul><li>옷 {pendingBackup.data.items.length}개 · 카테고리 {pendingBackup.data.categories.length}개</li><li>착장 {Object.values(pendingBackup.data.outfits).filter((ids) => Array.isArray(ids) && ids.length).length}일 · 룩북 {pendingBackup.data.lookbooks.length}개</li><li>위시리스트 {pendingBackup.data.wishlist.length}개 · 스크랩 {(pendingBackup.data.inspirations ?? []).length}개</li></ul><span>현재 브라우저의 전체 데이터가 이 파일 내용으로 교체됩니다. 필요하다면 먼저 현재 데이터를 내보내 주세요.</span></div></div><footer className="modal-actions"><button className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact" onClick={importBackup}>가져오기</button></footer></Modal>}
     {modal === "wish" && <Modal title="아이템 스크랩" subtitle={productDraft?.autoFilled ? "자동 입력된 내용을 확인해주세요" : "직접 상품 정보를 입력해주세요"} onClose={closeModal} className="wish-editor-modal"><AutofillSummary product={productDraft}/><form className="entry-form" onSubmit={addWish}><label><FieldTitle required>아이템 이름</FieldTitle><input name="name" required defaultValue={productDraft?.name || ""} placeholder="예: 브라운 레더 토트백"/></label><div className="form-row"><label><FieldTitle>브랜드</FieldTitle><input name="brand" defaultValue={productDraft?.brand || ""} placeholder="예: Aesther Ekme"/></label><label><FieldTitle required>분류</FieldTitle><SelectField name="category" required defaultValue={productDraft?.category || categories[0]}>{categories.map((name) => <option key={name}>{name}</option>)}</SelectField></label></div><label><FieldTitle>색상</FieldTitle><input name="color" defaultValue={productDraft?.color || ""} placeholder="예: 옐로우 다크 블루"/></label><label><FieldTitle>상품 URL</FieldTitle><div className="input-with-icon"><LinkIcon size={19}/><input name="url" type="url" defaultValue={productDraft?.url || ""} placeholder="https://"/></div></label><div className="field-group image-source-field"><FieldTitle>이미지 URL 또는 파일</FieldTitle><div className="image-source-row"><div className="input-with-icon"><ImageSquare size={19}/><input name="image" type="text" inputMode="url" defaultValue={productDraft?.image || ""} placeholder="https://image.example.com/item.jpg"/></div><input id="wish-image" className="visually-hidden-input" name="imageFile" type="file" accept="image/*" onChange={(event) => setWishFileName(event.target.files?.[0]?.name || "")}/><label className="image-upload-button" htmlFor="wish-image" title="이미지 파일 선택"><UploadSimple size={18}/><span>파일</span></label></div><small className={`field-help image-source-help${wishFileName ? " selected" : ""}`} aria-live="polite">{wishFileName ? `${wishFileName} 선택됨 · URL 이미지 대신 이 파일을 사용해요.` : "이미지 URL을 입력하거나 JPG, PNG, WEBP 파일을 선택하세요. 최대 2.5MB"}</small></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={closeModal}>취소</button><button className="primary-button compact">스크랩 저장</button></footer></form></Modal>}
     {dragPreview && itemMap[dragPreview.id] && <div className="drag-preview" style={{ "--drag-x": `${dragPreview.x}px`, "--drag-y": `${dragPreview.y}px` }} aria-hidden="true"><ItemVisual item={itemMap[dragPreview.id]}/><strong>{itemMap[dragPreview.id].name}</strong></div>}
     {notice && <div className="toast" role="status"><CheckCircle size={20} weight="fill"/>{notice}</div>}
