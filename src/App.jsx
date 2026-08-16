@@ -94,6 +94,17 @@ async function optimizeScrapImage(file) {
     return result;
   } finally { URL.revokeObjectURL(objectUrl); }
 }
+function writeLocalStorageSnapshot(entries) {
+  const serializedEntries = entries.map(([key, value]) => [key, JSON.stringify(value)]);
+  const previousValues = new Map(serializedEntries.map(([key]) => [key, localStorage.getItem(key)]));
+  try {
+    serializedEntries.forEach(([key, value]) => localStorage.setItem(key, value));
+  } catch (error) {
+    serializedEntries.forEach(([key]) => localStorage.removeItem(key));
+    previousValues.forEach((value, key) => { if (value !== null) localStorage.setItem(key, value); });
+    throw error;
+  }
+}
 function Required() { return <span className="required-mark" aria-label="필수">*</span>; }
 function FieldTitle({ children, required = false }) { return <span className="field-title">{children}{required && <Required />}</span>; }
 function CustomSelect({ name, value, defaultValue, onValueChange, children, required = false, label = "옵션 선택", variant = "field", className = "" }) {
@@ -940,7 +951,10 @@ export function App() {
   const exportBackup = () => {
     const payload = createBackupPayload(
       { items, categories, outfits, outfitNotes, lookbooks, wishlist, inspirations },
-      { theme, sidebarCollapsed, detailWidth, wardrobeView, wardrobeSort, lookbookSort, wishlistSort },
+      {
+        theme, sidebarCollapsed, detailWidth, currentView: view, settingsTab,
+        wardrobeView, outfitSort, wardrobeSort, lookbookSort, wishlistSort,
+      },
     );
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -969,6 +983,20 @@ export function App() {
   const importBackup = () => {
     if (!pendingBackup) return;
     const { data, preferences } = pendingBackup;
+    try {
+      writeLocalStorageSnapshot([
+        ["mycloset-items", data.items],
+        ["mycloset-categories", data.categories],
+        ["mycloset-outfits", data.outfits],
+        ["mycloset-outfit-notes", data.outfitNotes],
+        ["mycloset-lookbooks", data.lookbooks],
+        ["mycloset-wishlist", data.wishlist],
+        ["mycloset-inspirations", data.inspirations ?? []],
+      ]);
+    } catch {
+      setNotice("브라우저 저장 공간이 부족해 백업을 가져오지 못했어요. 현재 데이터는 유지됐어요.");
+      return;
+    }
     setItems(data.items);
     setCategories(data.categories);
     setOutfits(data.outfits);
@@ -978,7 +1006,10 @@ export function App() {
     setInspirations(data.inspirations ?? []);
     if (preferences.theme === "light" || preferences.theme === "dark") setTheme(preferences.theme);
     if (typeof preferences.sidebarCollapsed === "boolean") setSidebarCollapsed(preferences.sidebarCollapsed);
+    if (["calendar", "closet", "lookbook", "wishlist", "settings"].includes(preferences.currentView)) setView(preferences.currentView);
+    if (["general", "closet", "backup", "reset"].includes(preferences.settingsTab)) setSettingsTab(preferences.settingsTab);
     if (preferences.wardrobeView === "grid" || preferences.wardrobeView === "table") setWardrobeView(preferences.wardrobeView);
+    if (["recent", "oldest", "name", "category", "brand"].includes(preferences.outfitSort)) setOutfitSort(preferences.outfitSort);
     if (["recent", "oldest", "name", "category", "brand"].includes(preferences.wardrobeSort)) setWardrobeSort(preferences.wardrobeSort);
     if (["recent", "oldest", "name", "items"].includes(preferences.lookbookSort)) setLookbookSort(preferences.lookbookSort);
     if (["recent", "oldest", "name", "brand"].includes(preferences.wishlistSort)) setWishlistSort(preferences.wishlistSort);

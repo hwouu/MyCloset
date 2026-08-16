@@ -142,7 +142,8 @@ test("full backup payload round-trips every collection and screen preference", (
   };
   const preferences = {
     theme: "dark", sidebarCollapsed: true, detailWidth: 520,
-    wardrobeView: "table", wardrobeSort: "brand", lookbookSort: "items", wishlistSort: "name",
+    currentView: "lookbook", settingsTab: "closet", wardrobeView: "table",
+    outfitSort: "category", wardrobeSort: "brand", lookbookSort: "items", wishlistSort: "name",
   };
   const payload = createBackupPayload(data, preferences, "2026-08-14T00:00:00.000Z");
   assert.equal(payload.format, "mycloset-backup");
@@ -156,6 +157,13 @@ test("older backups without inspiration pins remain compatible", () => {
   });
   assert.equal("inspirations" in payload.data, false);
   assert.equal("inspirations" in validateBackupPayload(payload).data, false);
+});
+
+test("older backups without the latest screen preferences remain compatible", () => {
+  const payload = createBackupPayload({
+    items: [], categories: ["상의"], outfits: {}, outfitNotes: {}, lookbooks: [], wishlist: [],
+  }, { theme: "light" });
+  assert.deepEqual(validateBackupPayload(JSON.parse(JSON.stringify(payload))).preferences, { theme: "light" });
 });
 
 test("backup validation rejects unrelated and incomplete JSON files", () => {
