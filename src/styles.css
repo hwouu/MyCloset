@@ -253,6 +253,8 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
 .backup-notice{margin:14px 2px 0}
 .backup-confirm-copy>svg{color:var(--primary)}
 .backup-confirm-copy>div{min-width:0;display:grid;gap:7px}
+.form-alert{width:100%;padding:11px 13px;border:1px solid color-mix(in srgb,#e45b52 28%,var(--line));border-radius:9px;display:flex;align-items:flex-start;gap:9px;background:color-mix(in srgb,#e45b52 10%,var(--surface));color:#d94b43;font-size:12px;font-weight:650;line-height:1.5}
+.form-alert svg{flex:0 0 auto;margin-top:1px}
 .backup-confirm-copy ul{margin:3px 0;padding:10px 12px 10px 28px;border-radius:8px;background:var(--surface);font-size:12px;line-height:1.75}
 .backup-confirm-copy span{color:var(--sub);font-size:11px;line-height:1.55}
 @media(max-width:680px){.backup-actions>div{grid-template-columns:1fr}.backup-actions .secondary-button,.backup-actions .custom-file-field,.backup-actions .excel-action-card>.secondary-button,.backup-actions .settings-file-picker{width:100%;min-width:0}.backup-actions .settings-file-picker .file-name{max-width:100%}}
@@ -324,7 +326,35 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
 .settings-file-picker{min-height:0;padding:0;border:0;display:grid;justify-items:stretch;gap:6px;background:transparent}.settings-file-picker .file-picker-compact-button{height:42px;margin:0;padding-inline:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;cursor:pointer}.settings-file-picker .file-name{width:100%;max-width:180px;padding-inline:2px;font-size:10px;line-height:1.35;text-align:center}
 .excel-action-card>.secondary-button{height:42px;padding-inline:18px;border-radius:9px;font-size:13px;letter-spacing:-.01em}.excel-action-card button:disabled{opacity:.42;cursor:not-allowed}
 .excel-notice{margin:16px 0 0;padding:12px 14px;border-radius:8px;background:var(--muted);color:var(--sub);font-size:11px;line-height:1.55}
+.sync-panel{display:block}
+.sync-setup-card,.sync-connect-card,.sync-account-card{margin-top:20px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.sync-setup-card{display:flex;align-items:flex-start;gap:13px;color:var(--primary)}
+.sync-setup-card>div,.sync-connect-card>div,.sync-account-card>div:nth-child(2){min-width:0;display:grid;gap:5px}
+.sync-setup-card strong,.sync-connect-card strong,.sync-account-card strong{color:var(--text);font-size:13px}
+.sync-setup-card small,.sync-connect-card small,.sync-account-card small{color:var(--sub);font-size:11px;line-height:1.55}
+.sync-setup-card code{padding:2px 5px;border-radius:4px;background:var(--muted);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.sync-connect-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px}
+.sync-connect-card .primary-button{width:auto;margin:0;white-space:nowrap}
+.sync-account-card{display:grid;grid-template-columns:42px minmax(0,1fr) 36px;align-items:center;gap:12px}
+.sync-account-mark{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:16px;font-weight:800}
+.sync-account-card .icon-button{width:36px;height:36px}
+.sync-status-grid{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sync-status-grid>div{min-height:76px;padding:13px 14px;border:1px solid var(--line);border-radius:10px;display:grid;align-content:center;gap:5px;background:var(--surface)}
+.sync-status-grid span{color:var(--sub);font-size:10px}.sync-status-grid strong{font-size:12px}.sync-status-grid small{color:var(--faint);font-size:10px}
+.sync-primary-action{width:100%;height:44px;margin-top:14px}
+.sync-manual-actions{margin-top:10px;display:grid;gap:10px}
+.sync-manual-actions>section{min-height:82px;padding:14px;border:1px solid var(--line);border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;background:var(--soft)}
+.sync-manual-actions section>div{display:grid;gap:4px}.sync-manual-actions strong{font-size:12px}.sync-manual-actions small{color:var(--sub);font-size:10px;line-height:1.5}
+.sync-manual-actions button{white-space:nowrap}
+.sync-error{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:color-mix(in srgb,#e45b52 12%,var(--surface));color:#d94b43;font-size:11px;line-height:1.5}
+.sync-confirm-copy>p{display:grid;gap:5px}.sync-confirm-copy span{color:var(--sub);font-size:11px;line-height:1.55}
+.sync-conflict-options{display:grid;gap:10px}
+.sync-conflict-options>button{width:100%;padding:15px;border:1px solid var(--line);border-radius:11px;display:flex;align-items:flex-start;gap:12px;background:var(--soft);color:var(--primary);text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+.sync-conflict-options>button:hover{border-color:var(--line2);background:var(--muted)}
+.sync-conflict-options span{display:grid;gap:5px}.sync-conflict-options strong{color:var(--text);font-size:13px}.sync-conflict-options small{color:var(--sub);font-size:11px;line-height:1.5}
+.sync-conflict-warning{margin:12px 0 0;color:var(--sub);font-size:10px;line-height:1.55}
 @media(max-width:680px){.excel-action-card{grid-template-columns:1fr;gap:14px}.excel-action-controls{align-items:stretch;flex-direction:column}.excel-action-controls>a,.excel-action-card>.secondary-button,.settings-file-picker,.settings-file-picker .file-picker-compact-button{width:100%}.settings-file-picker{align-items:flex-start}.settings-file-picker .file-name{max-width:100%}}
+@media(max-width:680px){.sync-connect-card,.sync-manual-actions>section{grid-template-columns:1fr}.sync-connect-card .primary-button,.sync-manual-actions button{width:100%}.sync-status-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.excel-panel{scroll-margin-top:84px}}
 @media(max-width:900px){
   .closet-first-page{height:auto;min-height:100vh;grid-template-columns:1fr;grid-template-rows:auto auto auto;overflow:visible}
@@ -912,6 +942,38 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
 .collection-search-field button:hover{
   background:transparent;
   color:var(--text);
+}
+
+@media(hover:hover) and (pointer:fine){
+  [data-tooltip]{position:relative}
+  [data-tooltip]::after{
+    content:attr(data-tooltip);
+    position:absolute;
+    z-index:120;
+    top:calc(100% + 8px);
+    left:50%;
+    width:max-content;
+    max-width:220px;
+    padding:6px 9px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:var(--text);
+    box-shadow:0 6px 18px rgba(0,0,0,.14);
+    color:var(--surface);
+    font-size:10px;
+    font-weight:650;
+    line-height:1.35;
+    opacity:0;
+    pointer-events:none;
+    transform:translate(-50%,-3px);
+    transition:opacity .12s ease,transform .12s ease;
+    white-space:normal;
+  }
+  [data-tooltip]:hover::after,
+  [data-tooltip]:focus-visible::after{
+    opacity:1;
+    transform:translate(-50%,0);
+  }
 }
 
 .closet-main-filter-row{

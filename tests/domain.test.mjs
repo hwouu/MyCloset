@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildMonth, clampDetailWidth, createBackupPayload, createWardrobeResetState, filterItemsByCategory, formatFileTimestamp, getDetailWidthLimits, iso,
+  buildMonth, clampDetailWidth, createBackupPayload, createWardrobeResetState, filterItemsByCategory, formatFileTimestamp, getDetailWidthLimits, iso, isValidWebUrl,
   matchesSearchQuery, moveItemByOffset, nextLookbookName, parseWardrobeExcelRows, removeItemReferences, reorderItemIds, searchLookbooks,
   searchWardrobeItems, searchWishlistItems, transferOutfit, validItemIds, validateBackupPayload,
   wardrobeItemsToExcelRows, WARDROBE_EXCEL_HEADERS,
@@ -13,6 +13,14 @@ test("iso formats a local calendar date without timezone drift", () => {
 
 test("backup timestamps include a filesystem-safe local time", () => {
   assert.equal(formatFileTimestamp(new Date(2026, 7, 14, 9, 5, 7)), "2026-08-14_09-05-07");
+});
+
+test("web URL validation accepts only HTTP and HTTPS addresses", () => {
+  assert.equal(isValidWebUrl(""), true);
+  assert.equal(isValidWebUrl("https://www.uniqlo.com/kr/ko/products/E484875-000/00"), true);
+  assert.equal(isValidWebUrl("http://example.com/item"), true);
+  assert.equal(isValidWebUrl("ftp://example.com/item"), false);
+  assert.equal(isValidWebUrl("상품 주소"), false);
 });
 
 test("buildMonth creates a Sunday-first six-week grid", () => {

@@ -14,6 +14,15 @@ export function formatFileTimestamp(date = new Date()) {
   return `${iso(date)}_${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}-${String(date.getSeconds()).padStart(2, "0")}`;
 }
 
+export function isValidWebUrl(value) {
+  if (!value) return true;
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function buildMonth(cursor) {
   const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1 - start.getDay());
