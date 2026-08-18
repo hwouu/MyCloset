@@ -183,6 +183,7 @@ function SearchField({ value, onChange, label, placeholder, inputRef }) {
   return <label className="collection-search-field">
     <span className="sr-only">{label}</span>
     <MagnifyingGlass size={18} aria-hidden="true"/>
+    {!value && <span className="desktop-search-placeholder" aria-hidden="true"><kbd>/</kbd><span>를 눌러 검색하세요</span></span>}
     <input ref={inputRef} type="search" value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); } }} aria-label={label} title={`${label} (/)`} placeholder={placeholder}/>
     {value && <button type="button" onClick={() => onChange("")} aria-label={`${label} 지우기`} title="검색어 지우기"><X size={15} weight="bold"/></button>}
   </label>;
