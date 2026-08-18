@@ -11,6 +11,12 @@ test("sync comparison ignores export and cloud metadata", async () => {
   assert.equal(await hashBackupPayload(a), await hashBackupPayload(b));
 });
 
+test("sync comparison ignores device-specific screen preferences", () => {
+  const a = { ...payload, preferences: { theme: "dark", currentView: "closet" } };
+  const b = { ...payload, preferences: { theme: "light", currentView: "calendar" } };
+  assert.deepEqual(syncComparablePayload(a), syncComparablePayload(b));
+});
+
 test("sync action resolves one-sided changes and detects conflicts", () => {
   assert.equal(decideSyncAction({ localHash: "a", cloudExists: false }), "upload");
   assert.equal(decideSyncAction({ localHash: "a", cloudHash: "a", lastHash: "old" }), "synced");

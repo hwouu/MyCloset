@@ -75,6 +75,8 @@ async function graphFetch(path, options = {}) {
   });
   if (options.allowNotFound && response.status === 404) return null;
   if (options.allowMissingAppRoot && response.status === 403) return null;
+  if (response.status === 412) throw new Error("다른 기기에서 먼저 저장했어요. 최신 데이터를 확인해주세요.");
+  if (response.status === 429) throw new Error("OneDrive 요청이 잠시 많아요. 잠시 후 자동으로 다시 시도할게요.");
   if (!response.ok) {
     let detail = "";
     try { detail = (await response.json())?.error?.message || ""; } catch { /* no-op */ }
@@ -97,10 +99,13 @@ export async function getCloudSyncFile() {
   return { metadata, payload: await contentResponse.json() };
 }
 
-export async function uploadCloudSyncFile(payload) {
+export async function uploadCloudSyncFile(payload, { ifMatch = "" } = {}) {
   const response = await graphFetch(`/me/drive/special/approot:/${SYNC_FILE_NAME}:/content`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...(ifMatch ? { "If-Match": ifMatch } : {}),
+    },
     body: JSON.stringify(payload),
   });
   return response.json();

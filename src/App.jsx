@@ -21,6 +21,8 @@ const TEMPLATE_URL = "/templates/MyCloset_옷장_업로드_템플릿.xlsx";
 const DESKTOP_UI_DENSITY = 0.9;
 const PRODUCT_LOOKUP_TIMEOUT_MS = 15_000;
 const PRODUCT_LOOKUP_TIMEOUT_MESSAGE = "상품 정보를 가져오는 데 시간이 오래 걸리고 있어요. 직접 입력으로 등록해주세요.";
+const AUTO_SYNC_DEBOUNCE_MS = 3_000;
+const AUTO_SYNC_POLL_MS = 60_000;
 const INITIAL_ITEMS = [];
 const INITIAL_OUTFITS = {};
 const INITIAL_WISHLIST = [];
@@ -407,6 +409,8 @@ export function App() {
   const [syncMeta, setSyncMeta] = useState(() => load("mycloset-sync-state", {}));
   const [syncCloudInfo, setSyncCloudInfo] = useState(null);
   const [syncConflict, setSyncConflict] = useState(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => load("mycloset-auto-sync", true) !== false);
+  const [autoSyncStatus, setAutoSyncStatus] = useState("idle");
   const [pendingDeletion, setPendingDeletion] = useState(null);
   const [pinCaption, setPinCaption] = useState("");
   const [pinSourceUrl, setPinSourceUrl] = useState("");
@@ -434,11 +438,24 @@ export function App() {
   const wardrobeSearchRef = useRef(null);
   const lookbookSearchRef = useRef(null);
   const wishlistSearchRef = useRef(null);
+  const autoSyncTimerRef = useRef(null);
+  const autoSyncRunnerRef = useRef(null);
+  const syncOperationRef = useRef(false);
+  const skipNextAutoSyncRef = useRef(false);
+  const didObserveDataRef = useRef(false);
+  const syncChannelRef = useRef(null);
+  const syncTabIdRef = useRef(crypto.randomUUID());
+  const autoSyncEnabledRef = useRef(autoSyncEnabled);
+  const syncAccountRef = useRef(syncAccount);
 
   const allCategories = useMemo(() => ["전체", ...categories], [categories]);
+  const syncDataSignature = useMemo(() => JSON.stringify({ items, categories, outfits, outfitNotes, lookbooks, wishlist, inspirations }), [items, categories, outfits, outfitNotes, lookbooks, wishlist, inspirations]);
+  autoSyncEnabledRef.current = autoSyncEnabled;
+  syncAccountRef.current = syncAccount;
   useEffect(() => localStorage.setItem("mycloset-current-view", JSON.stringify(view)), [view]);
   useEffect(() => localStorage.setItem("mycloset-settings-tab", JSON.stringify(settingsTab)), [settingsTab]);
   useEffect(() => localStorage.setItem("mycloset-sync-state", JSON.stringify(syncMeta)), [syncMeta]);
+  useEffect(() => localStorage.setItem("mycloset-auto-sync", JSON.stringify(autoSyncEnabled)), [autoSyncEnabled]);
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem("mycloset-theme", JSON.stringify(theme)); }, [theme]);
   useEffect(() => localStorage.setItem("mycloset-items", JSON.stringify(items)), [items]);
   useEffect(() => localStorage.setItem("mycloset-outfits", JSON.stringify(outfits)), [outfits]);
@@ -1071,7 +1088,7 @@ export function App() {
       setNotice(error instanceof SyntaxError ? "JSON 백업 파일을 읽지 못했어요." : error.message);
     }
   };
-  const applyBackupPayload = (validated, { close = true, successMessage = "전체 데이터를 가져왔어요." } = {}) => {
+  const applyBackupPayload = (validated, { close = true, successMessage = "전체 데이터를 가져왔어요.", preservePreferences = false, suppressAutoSync = false } = {}) => {
     if (!validated) return false;
     const { data, preferences } = validated;
     try {
@@ -1088,6 +1105,7 @@ export function App() {
       setNotice("브라우저 저장 공간이 부족해 백업을 가져오지 못했어요. 현재 데이터는 유지됐어요.");
       return false;
     }
+    if (suppressAutoSync) skipNextAutoSyncRef.current = true;
     setItems(data.items);
     setCategories(data.categories);
     setOutfits(data.outfits);
@@ -1095,19 +1113,21 @@ export function App() {
     setLookbooks(data.lookbooks);
     setWishlist(data.wishlist);
     setInspirations(data.inspirations ?? []);
-    if (preferences.theme === "light" || preferences.theme === "dark") setTheme(preferences.theme);
-    if (typeof preferences.sidebarCollapsed === "boolean") setSidebarCollapsed(preferences.sidebarCollapsed);
-    if (["calendar", "closet", "lookbook", "wishlist", "settings"].includes(preferences.currentView)) setView(preferences.currentView);
-    if (["general", "closet", "sync", "backup", "reset"].includes(preferences.settingsTab)) setSettingsTab(preferences.settingsTab);
-    if (preferences.wardrobeView === "grid" || preferences.wardrobeView === "table") setWardrobeView(preferences.wardrobeView);
-    if (["recent", "oldest", "name", "category", "brand"].includes(preferences.outfitSort)) setOutfitSort(preferences.outfitSort);
-    if (["recent", "oldest", "name", "category", "brand"].includes(preferences.wardrobeSort)) setWardrobeSort(preferences.wardrobeSort);
-    if (["recent", "oldest", "name", "items"].includes(preferences.lookbookSort)) setLookbookSort(preferences.lookbookSort);
-    if (["recent", "oldest", "name", "brand"].includes(preferences.wishlistSort)) setWishlistSort(preferences.wishlistSort);
-    if (Number.isFinite(Number(preferences.detailWidth))) {
-      const collapsed = typeof preferences.sidebarCollapsed === "boolean" ? preferences.sidebarCollapsed : sidebarCollapsed;
-      const { minWidth, maxWidth } = detailWidthLimits(collapsed);
-      setDetailWidth(Math.min(maxWidth, Math.max(minWidth, Number(preferences.detailWidth))));
+    if (!preservePreferences) {
+      if (preferences.theme === "light" || preferences.theme === "dark") setTheme(preferences.theme);
+      if (typeof preferences.sidebarCollapsed === "boolean") setSidebarCollapsed(preferences.sidebarCollapsed);
+      if (["calendar", "closet", "lookbook", "wishlist", "settings"].includes(preferences.currentView)) setView(preferences.currentView);
+      if (["general", "closet", "sync", "backup", "reset"].includes(preferences.settingsTab)) setSettingsTab(preferences.settingsTab);
+      if (preferences.wardrobeView === "grid" || preferences.wardrobeView === "table") setWardrobeView(preferences.wardrobeView);
+      if (["recent", "oldest", "name", "category", "brand"].includes(preferences.outfitSort)) setOutfitSort(preferences.outfitSort);
+      if (["recent", "oldest", "name", "category", "brand"].includes(preferences.wardrobeSort)) setWardrobeSort(preferences.wardrobeSort);
+      if (["recent", "oldest", "name", "items"].includes(preferences.lookbookSort)) setLookbookSort(preferences.lookbookSort);
+      if (["recent", "oldest", "name", "brand"].includes(preferences.wishlistSort)) setWishlistSort(preferences.wishlistSort);
+      if (Number.isFinite(Number(preferences.detailWidth))) {
+        const collapsed = typeof preferences.sidebarCollapsed === "boolean" ? preferences.sidebarCollapsed : sidebarCollapsed;
+        const { minWidth, maxWidth } = detailWidthLimits(collapsed);
+        setDetailWidth(Math.min(maxWidth, Math.max(minWidth, Number(preferences.detailWidth))));
+      }
     }
     setCategory("전체");
     setOutfitCategory("전체");
@@ -1131,9 +1151,13 @@ export function App() {
     };
     setSyncMeta(next);
     setSyncCloudInfo({ ...cloudFile, sync: cloudPayload?.sync });
+    setAutoSyncStatus("synced");
   };
-  const uploadCurrentData = async ({ close = false } = {}) => {
+  const uploadCurrentData = async ({ close = false, silent = false, expectedETag = "", managed = false } = {}) => {
+    if (!managed && syncOperationRef.current) return false;
+    if (!managed) syncOperationRef.current = true;
     setSyncBusy("upload");
+    setAutoSyncStatus("syncing");
     setSyncError("");
     try {
       const payload = currentBackupPayload();
@@ -1142,59 +1166,85 @@ export function App() {
         deviceId: getOrCreateSyncDeviceId(),
         deviceName: createDeviceName(navigator.userAgent),
       });
-      const uploaded = await uploadCloudSyncFile(cloudPayload);
+      const uploaded = await uploadCloudSyncFile(cloudPayload, { ifMatch: expectedETag });
       markSyncComplete(hash, uploaded, cloudPayload);
+      syncChannelRef.current?.postMessage({ type: "cloud-updated", hash, tabId: syncTabIdRef.current });
       if (close) closeModal();
-      setNotice("현재 데이터를 OneDrive에 저장했어요.");
+      if (!silent) setNotice("현재 데이터를 OneDrive에 저장했어요.");
       return true;
     } catch (error) {
       setSyncError(error.message || "OneDrive에 저장하지 못했어요.");
+      setAutoSyncStatus("error");
       return false;
-    } finally { setSyncBusy(""); }
+    } finally {
+      setSyncBusy("");
+      if (!managed) syncOperationRef.current = false;
+    }
   };
-  const downloadCloudData = async (cloud = null, { close = false } = {}) => {
+  const downloadCloudData = async (cloud = null, { close = false, silent = false, managed = false } = {}) => {
+    if (!managed && syncOperationRef.current) return false;
+    if (!managed) syncOperationRef.current = true;
     setSyncBusy("download");
+    setAutoSyncStatus("syncing");
     setSyncError("");
     try {
       const cloudFile = cloud || await getCloudSyncFile();
       if (!cloudFile) throw new Error("OneDrive에 저장된 MyCloset 데이터가 없어요.");
       const validated = validateBackupPayload(cloudFile.payload);
       const hash = await hashBackupPayload(cloudFile.payload);
-      if (!applyBackupPayload(validated, { close: false, successMessage: "OneDrive 데이터를 이 기기에 적용했어요." })) return false;
+      if (!applyBackupPayload(validated, { close: false, successMessage: silent ? "" : "OneDrive 데이터를 이 기기에 적용했어요.", preservePreferences: true, suppressAutoSync: true })) return false;
       markSyncComplete(hash, cloudFile.metadata, cloudFile.payload);
       if (close) closeModal();
       return true;
     } catch (error) {
       setSyncError(error instanceof SyntaxError ? "OneDrive 동기화 파일을 읽지 못했어요." : error.message || "동기화 데이터를 가져오지 못했어요.");
+      setAutoSyncStatus("error");
       return false;
-    } finally { setSyncBusy(""); }
+    } finally {
+      setSyncBusy("");
+      if (!managed) syncOperationRef.current = false;
+    }
   };
-  const syncNow = async () => {
+  const syncNow = async ({ automatic = false } = {}) => {
+    if (syncOperationRef.current || !syncAccount) return false;
+    if (!navigator.onLine) {
+      setAutoSyncStatus("offline");
+      if (!automatic) setSyncError("오프라인 상태예요. 인터넷에 연결되면 자동으로 다시 시도할게요.");
+      return false;
+    }
+    syncOperationRef.current = true;
     setSyncBusy("sync");
+    setAutoSyncStatus("syncing");
     setSyncError("");
     try {
       const localPayload = currentBackupPayload();
       const localHash = await hashBackupPayload(localPayload);
       const cloud = await getCloudSyncFile();
       if (!cloud) {
-        await uploadCurrentData();
-        return;
+        return await uploadCurrentData({ silent: automatic, managed: true });
       }
       const cloudValidated = validateBackupPayload(cloud.payload);
       const cloudHash = await hashBackupPayload(cloud.payload);
       const action = decideSyncAction({ localHash, cloudHash, lastHash: syncMeta.lastHash || "", cloudExists: true });
-      if (action === "upload") await uploadCurrentData();
-      else if (action === "download") await downloadCloudData(cloud);
-      else if (action === "synced") {
+      if (action === "upload") return await uploadCurrentData({ silent: automatic, expectedETag: cloud.metadata.eTag, managed: true });
+      if (action === "download") return await downloadCloudData(cloud, { silent: automatic, managed: true });
+      if (action === "synced") {
         markSyncComplete(localHash, cloud.metadata, cloud.payload);
-        setNotice("이미 최신 상태예요.");
+        if (!automatic) setNotice("이미 최신 상태예요.");
       } else {
+        setAutoSyncStatus("conflict");
         setSyncConflict({ cloud, cloudValidated, localHash, cloudHash });
         setModal("syncConflict");
       }
+      return true;
     } catch (error) {
       setSyncError(error instanceof SyntaxError ? "OneDrive 동기화 파일을 읽지 못했어요." : error.message || "동기화하지 못했어요.");
-    } finally { setSyncBusy(""); }
+      setAutoSyncStatus("error");
+      return false;
+    } finally {
+      setSyncBusy("");
+      syncOperationRef.current = false;
+    }
   };
   const handleConnectOneDrive = async () => {
     setSyncBusy("connect");
@@ -1216,6 +1266,76 @@ export function App() {
     } catch (error) { setSyncError(error.message || "계정 연결을 해제하지 못했어요."); }
     finally { setSyncBusy(""); }
   };
+
+  autoSyncRunnerRef.current = () => syncNow({ automatic: true });
+
+  useEffect(() => {
+    if (!didObserveDataRef.current) {
+      didObserveDataRef.current = true;
+      return undefined;
+    }
+    if (skipNextAutoSyncRef.current) {
+      skipNextAutoSyncRef.current = false;
+      return undefined;
+    }
+    if (!autoSyncEnabledRef.current || !syncAccountRef.current) return undefined;
+    clearTimeout(autoSyncTimerRef.current);
+    setAutoSyncStatus(navigator.onLine ? "pending" : "offline");
+    autoSyncTimerRef.current = setTimeout(() => autoSyncRunnerRef.current?.(), AUTO_SYNC_DEBOUNCE_MS);
+    return () => clearTimeout(autoSyncTimerRef.current);
+  }, [syncDataSignature]);
+
+  useEffect(() => {
+    if (!syncAccount) {
+      setAutoSyncStatus("idle");
+      return undefined;
+    }
+    if (!autoSyncEnabled) {
+      clearTimeout(autoSyncTimerRef.current);
+      setAutoSyncStatus("paused");
+      return undefined;
+    }
+    setAutoSyncStatus(navigator.onLine ? "checking" : "offline");
+    const timer = setTimeout(() => autoSyncRunnerRef.current?.(), 500);
+    return () => clearTimeout(timer);
+  }, [syncAccount, autoSyncEnabled]);
+
+  useEffect(() => {
+    const requestSync = () => {
+      if (!autoSyncEnabledRef.current || !syncAccountRef.current || document.visibilityState === "hidden") return;
+      autoSyncRunnerRef.current?.();
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") requestSync(); };
+    const onOnline = () => { setAutoSyncStatus("checking"); requestSync(); };
+    const onOffline = () => setAutoSyncStatus("offline");
+    window.addEventListener("focus", requestSync);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = setInterval(requestSync, AUTO_SYNC_POLL_MS);
+    return () => {
+      window.removeEventListener("focus", requestSync);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(interval);
+      clearTimeout(autoSyncTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) return undefined;
+    const channel = new BroadcastChannel("mycloset-sync");
+    syncChannelRef.current = channel;
+    channel.onmessage = (event) => {
+      if (event.data?.type !== "cloud-updated" || event.data.tabId === syncTabIdRef.current) return;
+      if (autoSyncEnabledRef.current && syncAccountRef.current) autoSyncRunnerRef.current?.();
+    };
+    return () => {
+      channel.close();
+      if (syncChannelRef.current === channel) syncChannelRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const onShortcut = (event) => {
@@ -1274,6 +1394,27 @@ export function App() {
     document.addEventListener("keydown", onShortcut);
     return () => document.removeEventListener("keydown", onShortcut);
   }, [calendarOpen, items.length, modal, selectedDate, view]);
+
+  const autoSyncCopy = {
+    idle: "Microsoft 계정을 연결하면 자동으로 맞춰드려요.",
+    checking: "OneDrive의 최신 변경을 확인하고 있어요.",
+    pending: "변경사항을 잠시 후 자동으로 저장해요.",
+    syncing: "OneDrive와 데이터를 맞추고 있어요.",
+    synced: "모든 변경사항이 동기화됐어요.",
+    offline: "오프라인이에요. 연결되면 자동으로 다시 시도해요.",
+    paused: "자동 동기화가 꺼져 있어요.",
+    error: "동기화하지 못했어요. 연결 상태를 확인해주세요.",
+    conflict: "두 기기의 변경사항 중 유지할 내용을 선택해주세요.",
+  }[autoSyncStatus] || "동기화 상태를 확인하고 있어요.";
+  const autoSyncIcon = ["checking", "pending", "syncing"].includes(autoSyncStatus)
+    ? <CircleNotch className="spin" size={21}/>
+    : ["error", "conflict", "offline"].includes(autoSyncStatus)
+      ? <WarningCircle size={21} weight="fill"/>
+      : <CloudCheck size={21}/>;
+  const autoSyncControl = <div className={`auto-sync-card status-${autoSyncStatus}`}>
+    <div className="auto-sync-summary">{autoSyncIcon}<span><strong>자동 동기화</strong><small>{autoSyncCopy}</small></span></div>
+    <button type="button" className="sync-toggle" role="switch" aria-checked={autoSyncEnabled} onClick={() => setAutoSyncEnabled((current) => !current)}><span/>{autoSyncEnabled ? "켜짐" : "꺼짐"}</button>
+  </div>;
 
   const renderItemForm = ({ mode }) => {
     const isEdit = mode === "edit";
@@ -1366,7 +1507,18 @@ export function App() {
       {settingsTab === "general" && <div className="settings-panel"><div className="panel-heading"><div><h2>화면 모드</h2><p>필요할 때 언제든 라이트와 다크 모드를 바꿀 수 있어요.</p></div></div><div className="theme-options"><button className={theme === "light" ? "selected" : ""} onClick={() => setTheme("light")}><Sun size={24}/><span><strong>라이트</strong><small>밝고 여백감 있는 화면</small></span>{theme === "light" && <CheckCircle size={21} weight="fill"/>}</button><button className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><Moon size={24}/><span><strong>다크</strong><small>차분하고 눈이 편한 화면</small></span>{theme === "dark" && <CheckCircle size={21} weight="fill"/>}</button></div></div>}
       {settingsTab === "closet" && <div className="settings-panel"><div className="panel-heading"><div><h2>카테고리 관리</h2><p>한 줄 목록에서 드래그하거나 위아래 화살표로 순서를 바꿔보세요. 변경한 순서는 아웃핏과 옷장에 바로 반영됩니다.</p></div></div><form className="inline-form" onSubmit={addCategory} noValidate><input name="categoryName" aria-label="새 카테고리 이름" placeholder="예: 운동복"/><button className="primary-button compact"><Plus size={18}/>추가</button></form><div className="category-manager">{categories.map((name, index) => { const used = items.some((item) => item.category === name); return <div className={`category-row${draggedCategoryName === name ? " is-dragging" : ""}${categoryDropTarget === name && draggedCategoryName !== name ? " is-drop-target" : ""}`} key={name} onDragEnter={() => setCategoryDropTarget(name)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => finishCategoryDrop(event, name)}><button type="button" className="category-drag-handle" draggable onDragStart={(event) => startCategoryDrag(event, name)} onDragEnd={() => { setDraggedCategoryName(null); setCategoryDropTarget(null); }} onKeyDown={(event) => handleCategoryKeyDown(event, name)} aria-label={`${name} 순서 변경. 위아래 화살표 키 사용`} title="드래그해서 순서 변경"><DotsSixVertical size={18} weight="bold"/></button><span>{name}<small>{items.filter((item) => item.category === name).length}개</small></span><div className="category-order-actions"><button type="button" className="category-order-button" onClick={() => moveCategory(name, -1)} aria-label={`${name} 위로 이동`} disabled={index === 0}><CaretUp size={15} weight="bold"/></button><button type="button" className="category-order-button" onClick={() => moveCategory(name, 1)} aria-label={`${name} 아래로 이동`} disabled={index === categories.length - 1}><CaretDown size={15} weight="bold"/></button><button type="button" className="icon-button subtle" onClick={() => deleteCategory(name)} aria-label={`${name} 삭제`} disabled={used} title={used ? "사용 중인 카테고리" : "카테고리 삭제"}><Trash size={17}/></button></div></div>; })}</div></div>}
       {settingsTab === "closet" && <div className="settings-panel excel-panel" id="wardrobe-data-management" ref={wardrobeDataRef} tabIndex={-1}><div className="panel-heading"><div><h2>옷장 데이터 관리</h2><p>옷장 데이터를 Excel로 가져오거나 현재 데이터를 파일로 저장할 수 있어요.</p></div><FileXls size={32}/></div><div className="excel-actions"><section className="excel-action-card"><div><strong>Excel에서 옷 가져오기</strong><small>최신 템플릿을 작성한 뒤 업로드하면 옷장 목록에 추가돼요.</small></div><div className="excel-action-controls"><a className="secondary-button compact" href={TEMPLATE_URL} download><DownloadSimple size={18}/>템플릿 받기</a><FilePicker id="excel-upload" name="excelFile" accept=".xlsx,.xls" fileName={excelFileName} label="Excel 가져오기" icon="excel" compact tone="primary" onChange={(event) => importExcel(event.target.files?.[0])}/></div></section><section className="excel-action-card"><div><strong>현재 옷장 내보내기</strong><small>{items.length ? `등록된 옷 ${items.length}개의 정보를 Excel 파일로 저장해요.` : "등록된 옷이 없어요. 버튼을 누르면 필요한 작업을 안내해드려요."}</small></div><button type="button" className="secondary-button compact" onClick={exportExcel}><DownloadSimple size={18}/>Excel 내보내기</button></section></div><p className="excel-notice">Excel은 옷장 데이터만 관리합니다. 아웃핏, 메모, 룩북, 위시리스트는 포함되지 않아요. 직접 업로드한 이미지 파일은 내보내지 않으며 웹 이미지 URL만 유지합니다.</p></div>}
-      {settingsTab === "sync" && <div className="settings-panel sync-panel"><div className="panel-heading"><div><h2>기기 간 동기화</h2><p>OneDrive의 MyCloset 전용 공간을 이용해 이 브라우저의 전체 데이터를 다른 기기와 맞춰요.</p></div><CloudCheck size={32}/></div>{!isOneDriveConfigured() ? <div className="sync-setup-card"><CloudArrowUp size={28}/><div><strong>Microsoft 연결 설정이 필요해요</strong><small>배포 환경에 <code>VITE_MS_CLIENT_ID</code>를 추가하면 OneDrive 동기화를 사용할 수 있어요. 설정 방법은 README에 정리되어 있습니다.</small></div></div> : !syncAccount ? <div className="sync-connect-card"><div><strong>Microsoft 계정을 연결하세요</strong><small>비밀번호는 MyCloset에 저장되지 않으며, 앱 전용 폴더에 있는 동기화 파일 하나에만 접근합니다.</small></div><button type="button" className="primary-button compact" disabled={Boolean(syncBusy)} onClick={handleConnectOneDrive}>{syncBusy === "connect" ? <CircleNotch className="spin" size={18}/> : <CloudArrowUp size={18}/>}Microsoft 연결</button></div> : <><div className="sync-account-card"><div className="sync-account-mark">{(syncAccount.name || syncAccount.username || "M").slice(0, 1).toUpperCase()}</div><div><strong>{syncAccount.name || "Microsoft 계정"}</strong><small>{syncAccount.username}</small></div><button type="button" className="icon-button subtle" onClick={handleDisconnectOneDrive} disabled={Boolean(syncBusy)} title="Microsoft 연결 해제" aria-label="Microsoft 연결 해제"><SignOut size={18}/></button></div><div className="sync-status-grid"><div><span>마지막 동기화</span><strong>{formatSyncDate(syncMeta.lastSyncedAt)}</strong></div><div><span>클라우드 최신 저장</span><strong>{formatSyncDate(syncCloudInfo?.lastModifiedDateTime || syncMeta.cloudUpdatedAt)}</strong>{(syncCloudInfo?.sync?.deviceName || syncMeta.cloudDeviceName) && <small>{syncCloudInfo?.sync?.deviceName || syncMeta.cloudDeviceName}</small>}</div></div><button type="button" className="primary-button sync-primary-action" disabled={Boolean(syncBusy)} onClick={syncNow}>{syncBusy ? <CircleNotch className="spin" size={19}/> : <ArrowsClockwise size={19}/>}지금 동기화</button><div className="sync-manual-actions"><section><div><strong>현재 기기 → OneDrive</strong><small>이 브라우저의 데이터로 클라우드 파일을 교체합니다.</small></div><button type="button" className="secondary-button compact" disabled={Boolean(syncBusy)} onClick={() => setModal("confirmCloudUpload")}><CloudArrowUp size={18}/>클라우드에 저장</button></section><section><div><strong>OneDrive → 현재 기기</strong><small>클라우드 데이터로 이 브라우저의 전체 데이터를 교체합니다.</small></div><button type="button" className="secondary-button compact" disabled={Boolean(syncBusy)} onClick={() => setModal("confirmCloudDownload")}><CloudArrowDown size={18}/>이 기기로 가져오기</button></section></div></>}{syncError && <p className="sync-error" role="alert">{syncError}</p>}<p className="backup-notice">동기화는 자동으로 실행되지 않습니다. 다른 기기에서 작업을 시작하거나 마친 뒤 <strong>지금 동기화</strong>를 눌러주세요. 양쪽 데이터가 모두 바뀐 경우 어느 쪽을 유지할지 확인합니다.</p></div>}
+      {settingsTab === "sync" && <div className="settings-panel sync-panel">
+        <div className="panel-heading"><div><h2>기기 간 동기화</h2><p>OneDrive의 MyCloset 전용 공간을 이용해 이 브라우저의 전체 데이터를 다른 기기와 맞춰요.</p></div><CloudCheck size={32}/></div>
+        {!isOneDriveConfigured() ? <div className="sync-setup-card"><CloudArrowUp size={28}/><div><strong>Microsoft 연결 설정이 필요해요</strong><small>배포 환경에 <code>VITE_MS_CLIENT_ID</code>를 추가하면 OneDrive 동기화를 사용할 수 있어요. 설정 방법은 README에 정리되어 있습니다.</small></div></div> : !syncAccount ? <div className="sync-connect-card"><div><strong>Microsoft 계정을 연결하세요</strong><small>비밀번호는 MyCloset에 저장되지 않으며, 앱 전용 폴더에 있는 동기화 파일 하나에만 접근합니다.</small></div><button type="button" className="primary-button compact" disabled={Boolean(syncBusy)} onClick={handleConnectOneDrive}>{syncBusy === "connect" ? <CircleNotch className="spin" size={18}/> : <CloudArrowUp size={18}/>}Microsoft 연결</button></div> : <>
+          <div className="sync-account-card"><div className="sync-account-mark">{(syncAccount.name || syncAccount.username || "M").slice(0, 1).toUpperCase()}</div><div><strong>{syncAccount.name || "Microsoft 계정"}</strong><small>{syncAccount.username}</small></div><button type="button" className="icon-button subtle" onClick={handleDisconnectOneDrive} disabled={Boolean(syncBusy)} title="Microsoft 연결 해제" aria-label="Microsoft 연결 해제"><SignOut size={18}/></button></div>
+          {autoSyncControl}
+          <div className="sync-status-grid"><div><span>마지막 동기화</span><strong>{formatSyncDate(syncMeta.lastSyncedAt)}</strong></div><div><span>클라우드 최신 저장</span><strong>{formatSyncDate(syncCloudInfo?.lastModifiedDateTime || syncMeta.cloudUpdatedAt)}</strong>{(syncCloudInfo?.sync?.deviceName || syncMeta.cloudDeviceName) && <small>{syncCloudInfo?.sync?.deviceName || syncMeta.cloudDeviceName}</small>}</div></div>
+          <button type="button" className="primary-button sync-primary-action" disabled={Boolean(syncBusy)} onClick={syncNow}>{syncBusy ? <CircleNotch className="spin" size={19}/> : <ArrowsClockwise size={19}/>}지금 동기화</button>
+          <div className="sync-manual-actions"><section><div><strong>현재 기기 → OneDrive</strong><small>이 브라우저의 데이터로 클라우드 파일을 교체합니다.</small></div><button type="button" className="secondary-button compact" disabled={Boolean(syncBusy)} onClick={() => setModal("confirmCloudUpload")}><CloudArrowUp size={18}/>클라우드에 저장</button></section><section><div><strong>OneDrive → 현재 기기</strong><small>클라우드 데이터로 이 브라우저의 전체 데이터를 교체합니다.</small></div><button type="button" className="secondary-button compact" disabled={Boolean(syncBusy)} onClick={() => setModal("confirmCloudDownload")}><CloudArrowDown size={18}/>이 기기로 가져오기</button></section></div>
+        </>}
+        {syncError && <p className="sync-error" role="alert">{syncError}</p>}
+        <p className="backup-notice">자동 동기화는 변경 후 잠시 기다렸다 저장하고, 앱 실행·화면 복귀·온라인 전환 시 최신 데이터를 확인합니다. 양쪽 데이터가 모두 바뀐 경우에만 유지할 내용을 확인합니다.</p>
+      </div>}
       {settingsTab === "backup" && <div className="settings-panel backup-panel"><div className="panel-heading"><div><h2>전체 데이터 백업</h2><p>브라우저를 옮기거나 데이터를 안전하게 보관할 때 전체 백업을 사용하세요.</p></div><DownloadSimple size={32}/></div><div className="backup-actions"><section className="excel-action-card"><div><strong>전체 데이터 내보내기</strong><small>옷과 이미지, 아웃핏, 메모, 룩북, 스크랩, 위시리스트 및 화면 설정을 JSON 파일로 저장해요.</small></div><button type="button" className="secondary-button compact" onClick={exportBackup}><DownloadSimple size={18}/>백업 다운로드</button></section><section className="excel-action-card"><div><strong>백업 파일 가져오기</strong><small>선택한 백업의 내용으로 현재 브라우저 데이터를 교체해요.</small></div><FilePicker id="backup-upload" name="backupFile" accept=".json,application/json" fileName={backupFileName} label="백업 가져오기" compact tone="primary" onChange={(event) => prepareBackupImport(event.target.files?.[0])}/></section></div><p className="backup-notice">업로드한 이미지와 스크랩도 백업에 포함됩니다. 가져오기는 현재 데이터를 교체하므로 필요한 경우 먼저 백업을 내려받아 안전하게 보관하세요.</p></div>}
       {settingsTab === "reset" && <div className="settings-panel settings-danger-zone"><div className="panel-heading"><div><h2>데이터 초기화</h2><p>옷장을 처음부터 다시 정리합니다. 옷을 기준으로 저장된 아웃핏과 메모, 룩북도 함께 삭제됩니다.</p></div></div><div className="danger-zone-action"><div><strong>옷장 데이터 초기화</strong><small>위시리스트와 화면 모드·사이드바 설정은 유지됩니다.</small></div><button type="button" className="danger-button" onClick={() => setModal("confirmResetWardrobe")}><Trash size={18}/>초기화</button></div></div>}
     </section></div></main>}

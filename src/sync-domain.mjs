@@ -6,7 +6,6 @@ export function syncComparablePayload(payload) {
     format: payload.format,
     version: payload.version,
     data: payload.data,
-    preferences: payload.preferences ?? {},
   };
 }
 
