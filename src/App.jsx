@@ -1200,9 +1200,7 @@ export function App() {
     setSyncBusy("connect");
     setSyncError("");
     try {
-      const account = await connectOneDrive();
-      setSyncAccount(account);
-      setNotice("Microsoft 계정을 연결했어요.");
+      await connectOneDrive();
     } catch (error) { setSyncError(error.message || "Microsoft 계정을 연결하지 못했어요."); }
     finally { setSyncBusy(""); }
   };

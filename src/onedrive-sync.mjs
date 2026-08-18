@@ -30,7 +30,8 @@ async function getMsalClient() {
         cache: { cacheLocation: BrowserCacheLocation.LocalStorage },
       });
       await client.initialize();
-      await client.handleRedirectPromise();
+      const redirectResult = await client.handleRedirectPromise();
+      if (redirectResult?.account) client.setActiveAccount(redirectResult.account);
       return client;
     })();
   }
@@ -45,9 +46,7 @@ export async function getConnectedAccount() {
 
 export async function connectOneDrive() {
   const client = await getMsalClient();
-  const result = await client.loginPopup({ scopes: [SYNC_SCOPE], prompt: "select_account" });
-  client.setActiveAccount(result.account);
-  return result.account;
+  await client.loginRedirect({ scopes: [SYNC_SCOPE], prompt: "select_account" });
 }
 
 export async function disconnectOneDrive() {
@@ -75,6 +74,7 @@ async function graphFetch(path, options = {}) {
     headers: { Authorization: `Bearer ${token}`, ...options.headers },
   });
   if (options.allowNotFound && response.status === 404) return null;
+  if (options.allowMissingAppRoot && response.status === 403) return null;
   if (!response.ok) {
     let detail = "";
     try { detail = (await response.json())?.error?.message || ""; } catch { /* no-op */ }
@@ -84,20 +84,21 @@ async function graphFetch(path, options = {}) {
 }
 
 export async function getCloudSyncFile() {
-  const response = await graphFetch(`/me/drive/special/approot:/${SYNC_FILE_NAME}?$select=id,name,eTag,lastModifiedDateTime,size,@microsoft.graph.downloadUrl`, { allowNotFound: true });
+  // A first-time app root can return 403 for a child lookup before the first
+  // write creates the folder. Treat that first lookup like a missing file; an
+  // actual permission problem is still surfaced by the following PUT request.
+  const response = await graphFetch(`/me/drive/special/approot:/${SYNC_FILE_NAME}?$select=id,name,eTag,lastModifiedDateTime,size`, {
+    allowNotFound: true,
+    allowMissingAppRoot: true,
+  });
   if (!response) return null;
   const metadata = await response.json();
-  const downloadUrl = metadata["@microsoft.graph.downloadUrl"];
-  if (!downloadUrl) throw new Error("OneDrive 동기화 파일을 내려받을 수 없어요.");
-  const contentResponse = await fetch(downloadUrl);
-  if (!contentResponse.ok) throw new Error("OneDrive 동기화 파일을 읽지 못했어요.");
+  const contentResponse = await graphFetch(`/me/drive/items/${encodeURIComponent(metadata.id)}/content`);
   return { metadata, payload: await contentResponse.json() };
 }
 
 export async function uploadCloudSyncFile(payload) {
-  const folderResponse = await graphFetch("/me/drive/special/approot?$select=id");
-  const folder = await folderResponse.json();
-  const response = await graphFetch(`/me/drive/items/${encodeURIComponent(folder.id)}:/${SYNC_FILE_NAME}:/content`, {
+  const response = await graphFetch(`/me/drive/special/approot:/${SYNC_FILE_NAME}:/content`, {
     method: "PUT",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify(payload),

@@ -58,11 +58,11 @@ MyCloset은 별도 데이터베이스 없이 브라우저 로컬 저장소에 �
 2. `인증 > 플랫폼 추가 > 단일 페이지 애플리케이션(SPA)`에서 개발 주소 `http://localhost:5173`과 배포 주소 `https://mycloset-mocha.vercel.app`을 Redirect URI로 등록합니다.
 3. 지원 계정 유형은 개인 Microsoft 계정을 포함하도록 선택합니다.
 4. `.env.example`을 참고해 로컬 `.env.local`에 애플리케이션 Client ID를 넣습니다.
-5. Vercel 프로젝트의 Environment Variables에도 `VITE_MS_CLIENT_ID`를 추가한 뒤 다시 배포합니다. 필요하면 `VITE_MS_TENANT_ID=common`도 명시합니다.
+5. Vercel 프로젝트의 Environment Variables에도 `VITE_MS_CLIENT_ID`와 `VITE_MS_TENANT_ID=consumers`를 추가한 뒤 다시 배포합니다.
 
 ```bash
 VITE_MS_CLIENT_ID=00000000-0000-0000-0000-000000000000
-VITE_MS_TENANT_ID=common
+VITE_MS_TENANT_ID=consumers
 ```
 
 연결 후 설정의 `동기화` 탭에서 `지금 동기화`를 누르면 다음 규칙이 적용됩니다.
