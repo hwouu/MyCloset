@@ -843,8 +843,7 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
   opacity:1;
 }
 
-.desktop-search-placeholder,
-.desktop-search-focus-placeholder{
+.desktop-search-placeholder{
   display:none;
 }
 
@@ -872,17 +871,8 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
     display:none;
   }
 
-  .collection-search-field:focus-within .desktop-search-focus-placeholder{
-    position:absolute;
-    top:50%;
-    left:30px;
-    z-index:1;
-    display:block;
+  .collection-search-field:focus-within input::placeholder{
     color:var(--sub);
-    font-size:13px;
-    line-height:1;
-    pointer-events:none;
-    transform:translateY(-62%);
   }
 
   .desktop-search-placeholder kbd{

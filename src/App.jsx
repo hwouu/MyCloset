@@ -180,11 +180,12 @@ function SortControl({ label, value, onChange, children }) {
   return <CustomSelect value={value} onValueChange={onChange} label={label} variant="sort" className="sort-control">{children}</CustomSelect>;
 }
 function SearchField({ value, onChange, label, placeholder, inputRef }) {
+  const [desktopFocused, setDesktopFocused] = useState(false);
   return <label className="collection-search-field">
     <span className="sr-only">{label}</span>
     <MagnifyingGlass size={18} aria-hidden="true"/>
-    {!value && <><span className="desktop-search-placeholder" aria-hidden="true"><kbd>/</kbd><span>를 눌러 검색하세요</span></span><span className="desktop-search-focus-placeholder" aria-hidden="true">검색어를 입력해주세요</span></>}
-    <input ref={inputRef} type="search" value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); } }} aria-label={label} title={`${label} (/)`} placeholder={placeholder}/>
+    {!value && <span className="desktop-search-placeholder" aria-hidden="true"><kbd>/</kbd><span>를 눌러 검색하세요</span></span>}
+    <input ref={inputRef} type="search" value={value} onFocus={() => setDesktopFocused(window.matchMedia("(min-width: 901px)").matches)} onBlur={() => setDesktopFocused(false)} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); } }} aria-label={label} title={`${label} (/)`} placeholder={desktopFocused ? "검색어를 입력해주세요" : placeholder}/>
     {value && <button type="button" onClick={() => onChange("")} aria-label={`${label} 지우기`} title="검색어 지우기"><X size={15} weight="bold"/></button>}
   </label>;
 }
