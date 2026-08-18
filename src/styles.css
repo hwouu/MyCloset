@@ -908,6 +908,159 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
   }
 }
 
+/* Outfit editor and date transfer */
+@media(min-width:901px){
+  .modal-wide.outfit-editor-modal{
+    width:min(1220px,calc(100vw - 44px));
+    height:min(800px,calc(100vh - 24px));
+  }
+
+  .modal-wide.outfit-editor-modal .picker-grid{
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:14px;
+  }
+}
+
+.outfit-editor-modal .picker-visual{
+  height:auto;
+  aspect-ratio:1 / 1.06;
+}
+
+.outfit-editor-modal .picker-grid>button{
+  border-radius:11px;
+}
+
+.outfit-editor-modal .picker-grid>button>span{
+  min-height:84px;
+  padding:12px 13px;
+}
+
+.outfit-editor-modal .picker-grid strong{
+  font-size:13px;
+  line-height:1.4;
+}
+
+.outfit-editor-modal .picker-grid small{
+  margin-top:4px;
+  font-size:11px;
+  line-height:1.4;
+}
+
+@media(min-width:681px) and (max-width:900px){
+  .modal-wide.outfit-editor-modal .picker-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:12px;
+  }
+}
+
+@media(max-width:680px){
+  .modal-wide.outfit-editor-modal .picker-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+
+  .outfit-editor-modal .picker-grid>button>span{
+    min-height:76px;
+    padding:10px;
+  }
+}
+
+.outfit-editor-actions{
+  gap:8px;
+}
+
+.outfit-transfer-modal{
+  width:min(560px,100%);
+  overflow:auto;
+}
+
+.outfit-transfer-copy{
+  margin-top:24px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  background:var(--soft);
+}
+
+.outfit-transfer-copy>svg{
+  flex:none;
+  color:var(--primary);
+}
+
+.outfit-transfer-copy>div{
+  display:grid;
+  gap:5px;
+}
+
+.outfit-transfer-copy strong{
+  font-size:13px;
+}
+
+.outfit-transfer-copy span{
+  color:var(--sub);
+  font-size:11px;
+  line-height:1.5;
+}
+
+.outfit-transfer-calendar{
+  margin-top:18px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:var(--surface);
+}
+
+.outfit-transfer-calendar .compact-calendar-grid{
+  margin-top:13px;
+}
+
+.outfit-transfer-calendar .compact-calendar-grid .month-grid{
+  height:264px;
+  grid-template-rows:repeat(6,minmax(0,1fr));
+}
+
+.outfit-transfer-calendar .compact-calendar-grid .day-cell{
+  height:auto;
+  min-height:0;
+}
+
+.outfit-transfer-note{
+  margin:12px 0 0;
+  padding:10px 12px;
+  border-radius:8px;
+  background:var(--primary-soft);
+  color:var(--primary);
+  font-size:11px;
+  line-height:1.5;
+}
+
+@media(max-width:680px){
+  .outfit-editor-actions .secondary-button:not(:last-of-type){
+    flex:1 1 auto;
+  }
+
+  .outfit-transfer-modal{
+    width:calc(100vw - 24px);
+    padding:20px 16px;
+  }
+
+  .outfit-transfer-copy{
+    margin-top:18px;
+  }
+
+  .outfit-transfer-calendar{
+    margin-top:14px;
+    padding:12px;
+  }
+
+  .outfit-transfer-calendar .compact-calendar-grid .month-grid{
+    height:240px;
+  }
+}
+
 .search-empty-state{
   min-height:270px;
   margin-top:20px;
@@ -992,7 +1145,24 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
   }
 
   .collection-sort-row.wishlist-tools .collection-search-field{
-    order:-1;
+    width:auto;
+    margin:0;
+    flex:1 1 auto;
+    flex-basis:auto;
+    order:0;
+  }
+
+  .collection-sort-row.wishlist-tools{
+    flex-wrap:nowrap;
+    gap:8px;
+  }
+
+  .collection-sort-row.wishlist-tools>span{
+    display:none;
+  }
+
+  .collection-sort-row.wishlist-tools .sort-control{
+    flex:none;
   }
 
   .closet-main-filter-row{
@@ -2341,6 +2511,76 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
   outline:3px solid var(--primary-soft);
   outline-offset:1px;
   color:var(--text);
+}
+
+.outfit-date-line{
+  margin-top:6px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:24px;
+  overflow:hidden;
+}
+
+.outfit-main-header .outfit-date-line .outfit-date-value{
+  margin:0;
+  line-height:20px;
+}
+
+.today-date-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:20px;
+  padding:3px 7px;
+  border-radius:999px;
+  background:var(--primary-soft);
+  color:var(--primary);
+  font-size:10px;
+  font-weight:750;
+  line-height:1;
+  letter-spacing:.02em;
+}
+
+.outfit-date-value.date-next{animation:outfit-date-from-next .24s ease-out both}
+.outfit-date-value.date-previous{animation:outfit-date-from-previous .24s ease-out both}
+.outfit-workspace.date-next{animation:outfit-content-from-next .24s ease-out both}
+.outfit-workspace.date-previous{animation:outfit-content-from-previous .24s ease-out both}
+
+@keyframes outfit-date-from-next{
+  from{opacity:0;transform:translateX(10px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+@keyframes outfit-date-from-previous{
+  from{opacity:0;transform:translateX(-10px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+@keyframes outfit-content-from-next{
+  from{opacity:.72;transform:translateX(6px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+@keyframes outfit-content-from-previous{
+  from{opacity:.72;transform:translateX(-6px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+.shortcut-modal{width:min(470px,calc(100vw - 32px))}
+.shortcut-list{margin-top:22px;display:grid;gap:4px}
+.shortcut-list>div{min-height:48px;padding:9px 10px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:92px 1fr;align-items:center;gap:16px}
+.shortcut-list>div:last-child{border-bottom:0}
+.shortcut-list>div>span:last-child{color:var(--sub);font-size:13px;line-height:1.45}
+.shortcut-key-group{display:flex;gap:5px}
+.shortcut-list kbd{min-width:32px;height:28px;padding:0 8px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:var(--soft);color:var(--text);font-family:inherit;font-size:12px;font-weight:700;line-height:1;box-shadow:0 1px 0 color-mix(in srgb,var(--line2) 65%,transparent)}
+.shortcut-modal .modal-actions{margin-top:18px}
+
+@media(prefers-reduced-motion:reduce){
+  .outfit-date-value.date-next,
+  .outfit-date-value.date-previous,
+  .outfit-workspace.date-next,
+  .outfit-workspace.date-previous{animation:none}
 }
 
 @media(max-width:680px){

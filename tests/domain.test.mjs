@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   buildMonth, clampDetailWidth, createBackupPayload, createWardrobeResetState, filterItemsByCategory, formatFileTimestamp, getDetailWidthLimits, iso,
   matchesSearchQuery, moveItemByOffset, nextLookbookName, parseWardrobeExcelRows, removeItemReferences, reorderItemIds, searchLookbooks,
-  searchWardrobeItems, searchWishlistItems, validItemIds, validateBackupPayload,
+  searchWardrobeItems, searchWishlistItems, transferOutfit, validItemIds, validateBackupPayload,
   wardrobeItemsToExcelRows, WARDROBE_EXCEL_HEADERS,
 } from "../src/domain.mjs";
 
@@ -80,6 +80,17 @@ test("outfit reordering is immutable and ignores invalid targets", () => {
   assert.deepEqual(ids, ["a", "b", "c"]);
   assert.equal(reorderItemIds(ids, "missing", "c"), ids);
   assert.equal(reorderItemIds(ids, "a", "a"), ids);
+});
+
+test("outfits can be copied or moved to another date without mutating the source", () => {
+  const outfits = { "2026-08-18": ["shirt"], "2026-08-20": ["old"] };
+  const copied = transferOutfit(outfits, "2026-08-18", "2026-08-19", ["shirt", "pants"], "copy");
+  assert.deepEqual(copied, { "2026-08-18": ["shirt", "pants"], "2026-08-19": ["shirt", "pants"], "2026-08-20": ["old"] });
+  assert.deepEqual(outfits, { "2026-08-18": ["shirt"], "2026-08-20": ["old"] });
+
+  const moved = transferOutfit(outfits, "2026-08-18", "2026-08-20", ["shirt"], "move");
+  assert.deepEqual(moved, { "2026-08-20": ["shirt"] });
+  assert.equal(transferOutfit(outfits, "2026-08-18", "2026-08-18", ["shirt"], "copy"), outfits);
 });
 
 test("keyboard outfit movement clamps at both ends", () => {

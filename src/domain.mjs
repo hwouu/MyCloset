@@ -102,6 +102,14 @@ export function moveItemByOffset(ids, id, direction) {
   return next;
 }
 
+export function transferOutfit(outfits, sourceDate, targetDate, itemIds, mode = "copy") {
+  if (!sourceDate || !targetDate || sourceDate === targetDate || !itemIds.length) return outfits;
+  const next = { ...outfits, [targetDate]: [...itemIds] };
+  if (mode === "move") delete next[sourceDate];
+  else next[sourceDate] = [...itemIds];
+  return next;
+}
+
 export function removeItemReferences(outfits, lookbooks, itemId) {
   return {
     outfits: Object.fromEntries(Object.entries(outfits).map(([date, ids]) => [date, ids.filter((id) => id !== itemId)])),
