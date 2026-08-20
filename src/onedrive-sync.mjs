@@ -52,7 +52,7 @@ export async function connectOneDrive() {
 export async function disconnectOneDrive() {
   const client = await getMsalClient();
   const account = client.getActiveAccount() || client.getAllAccounts()[0];
-  if (account) await client.logoutPopup({ account, mainWindowRedirectUri: window.location.href });
+  if (account) await client.logoutRedirect({ account, postLogoutRedirectUri: configuration().redirectUri });
 }
 
 async function accessToken() {
@@ -63,7 +63,11 @@ async function accessToken() {
   try {
     return (await client.acquireTokenSilent({ account, scopes: [SYNC_SCOPE] })).accessToken;
   } catch {
-    return (await client.acquireTokenPopup({ account, scopes: [SYNC_SCOPE] })).accessToken;
+    // Keep authentication in the current window. A popup callback loads the
+    // full SPA in a second window and can consume MSAL state that belongs to
+    // the opener, leaving both windows stuck without a usable token.
+    await client.acquireTokenRedirect({ account, scopes: [SYNC_SCOPE] });
+    return new Promise(() => {});
   }
 }
 
