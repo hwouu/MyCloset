@@ -341,7 +341,7 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
 .auto-sync-card{margin-top:10px;padding:13px 14px;border:1px solid var(--line);border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;background:var(--soft)}
 .auto-sync-summary{min-width:0;display:flex;align-items:center;gap:11px;color:var(--primary)}
 .auto-sync-summary>span{min-width:0;display:grid;gap:4px}.auto-sync-summary strong{color:var(--text);font-size:12px}.auto-sync-summary small{color:var(--sub);font-size:10px;line-height:1.5}
-.auto-sync-card.status-error .auto-sync-summary,.auto-sync-card.status-conflict .auto-sync-summary,.auto-sync-card.status-offline .auto-sync-summary{color:#d95b52}
+.auto-sync-card.status-error .auto-sync-summary,.auto-sync-card.status-offline .auto-sync-summary{color:#d95b52}
 .sync-toggle{min-width:72px;height:34px;padding:0 10px 0 7px;border:1px solid var(--line2);border-radius:999px;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--surface);color:var(--sub);font:inherit;font-size:10px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
 .sync-toggle>span{width:18px;height:18px;border-radius:50%;background:var(--faint);transition:background .15s,transform .15s}
 .sync-toggle[aria-checked="true"]{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
@@ -357,11 +357,6 @@ body.modal-open{overflow:hidden}.sidebar-footer button.active{color:var(--primar
 .sync-manual-actions button{white-space:nowrap}
 .sync-error{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:color-mix(in srgb,#e45b52 12%,var(--surface));color:#d94b43;font-size:11px;line-height:1.5}
 .sync-confirm-copy>p{display:grid;gap:5px}.sync-confirm-copy span{color:var(--sub);font-size:11px;line-height:1.55}
-.sync-conflict-options{display:grid;gap:10px}
-.sync-conflict-options>button{width:100%;padding:15px;border:1px solid var(--line);border-radius:11px;display:flex;align-items:flex-start;gap:12px;background:var(--soft);color:var(--primary);text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
-.sync-conflict-options>button:hover{border-color:var(--line2);background:var(--muted)}
-.sync-conflict-options span{display:grid;gap:5px}.sync-conflict-options strong{color:var(--text);font-size:13px}.sync-conflict-options small{color:var(--sub);font-size:11px;line-height:1.5}
-.sync-conflict-warning{margin:12px 0 0;color:var(--sub);font-size:10px;line-height:1.55}
 @media(max-width:680px){.excel-action-card{grid-template-columns:1fr;gap:14px}.excel-action-controls{align-items:stretch;flex-direction:column}.excel-action-controls>a,.excel-action-card>.secondary-button,.settings-file-picker,.settings-file-picker .file-picker-compact-button{width:100%}.settings-file-picker{align-items:flex-start}.settings-file-picker .file-name{max-width:100%}}
 @media(max-width:680px){.sync-connect-card,.sync-manual-actions>section{grid-template-columns:1fr}.sync-connect-card .primary-button,.sync-manual-actions button{width:100%}.sync-status-grid{grid-template-columns:1fr}.auto-sync-card{grid-template-columns:1fr}.sync-toggle{width:100%}}
 @media(max-width:900px){.excel-panel{scroll-margin-top:84px}}
